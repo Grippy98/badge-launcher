@@ -1,0 +1,10 @@
+.DS_Store
+/Badge-Launcher/build
+Badge-Launcher/build_log.txt
+Badge-Launcher/build_log_2.txt
+/.west
+/build
+/bootloader
+/modules
+/tools
+/Badge-Launcher/src/doomgeneric

@@ -1,0 +1,4 @@
+[submodule "zephyr"]
+	path = zephyr
+	url = https://github.com/glneo/zephyr
+	branch = openamp-am62x-sk-m4

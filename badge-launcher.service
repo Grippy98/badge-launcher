@@ -1,0 +1,16 @@
+[Unit]
+Description=Badge Launcher Service
+After=multi-user.target network.target
+
+[Service]
+Type=simple
+ExecStart=/root/badge_launcher/run.sh
+WorkingDirectory=/root/badge_launcher
+Restart=always
+RestartSec=3
+User=root
+Environment=HOME=/root
+Environment=TERM=linux
+
+[Install]
+WantedBy=multi-user.target

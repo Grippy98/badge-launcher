@@ -1,0 +1,15 @@
+import lvgl as lv
+
+def init():
+    # Register FB display driver
+    disp = lv.linux_fbdev_create()
+    if not disp:
+        print("FAILED to create linux_fbdev")
+        return
+        
+    lv.linux_fbdev_set_file(disp, "/dev/fb0")
+    
+    # Force refresh
+    lv.refr_now(disp)
+    
+    print("Display initialized on /dev/fb0")
