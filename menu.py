@@ -58,6 +58,25 @@ style_btn_foc.set_text_color(lv.color_white())
 
 import statusbar
 import bottombar
+import time
+
+def full_refresh():
+    """Performs a full black->white sweep to clear E-Ink ghosting."""
+    refresh_scr = lv.obj()
+    refresh_scr.set_style_bg_opa(lv.OPA.COVER, 0)
+    
+    # Fill Black
+    refresh_scr.set_style_bg_color(lv.color_black(), 0)
+    lv.screen_load(refresh_scr)
+    lv.refr_now(None)
+    time.sleep(0.3)
+    
+    # Fill White
+    refresh_scr.set_style_bg_color(lv.color_white(), 0)
+    lv.refr_now(None)
+    time.sleep(0.3)
+    
+    # Cleanup: return to white is fine, caller will load their own screen next
 
 class MenuApp:
     def __init__(self):
@@ -89,6 +108,9 @@ class MenuApp:
         self.cached_apps = {} # Cache loaded apps {category: [apps]}
         
     def enter(self, on_exit=None): # on_exit ignored for Main Menu
+        # Full refresh when returning from an app
+        full_refresh()
+        
         if not self.screen:
             self.screen = lv.obj()
         lv.screen_load(self.screen)
@@ -266,10 +288,13 @@ class MenuApp:
                 try:
                     self.selected_category_idx = self.categories.index(item)
                     self.state = "SUBMENU"
-                    self.render_menu()
+                    lv.async_call(lambda _: self.render_menu(), None)
                 except: pass
         else:
             if hasattr(item, 'enter'):
+                # Full refresh before launching app
+                full_refresh()
+                
                 self.statusbar.hide()
                 self.bottombar.hide()
                 item.enter(on_exit=self.enter)
@@ -283,7 +308,7 @@ class MenuApp:
         if key == lv.KEY.LEFT or key == lv.KEY.BACKSPACE or key == 14 or key == lv.KEY.ESC:
             if self.state == "SUBMENU":
                 self.state = "ROOT"
-                self.render_menu()
+                lv.async_call(lambda _: self.render_menu(), None)
                 
         elif key == lv.KEY.RIGHT:
             target_blob = e.get_target()

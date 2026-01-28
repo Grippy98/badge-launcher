@@ -35,7 +35,13 @@ The output `.bin` files should be placed in the `Menu_Items` or `assets` directo
 ### 2. Deploy to Device
 Deploy the project files to the target device. Replace `192.168.1.xxx` with your device's IP address.
 
-**Directory Structure:**
+**Using sync.sh:**
+A helper script is provided to sync files using `sshpass` and `rsync`.
+```bash
+./sync.sh
+```
+
+**Manual Directory Structure:**
 The launcher expects to run from `~/badge_launcher`.
 
 ```bash
@@ -53,7 +59,50 @@ Ensure the launcher script and micropython binary are executable:
 ssh root@192.168.1.xxx "chmod +x ~/badge_launcher/run.sh ~/badge_launcher/micropython"
 ```
 
-*(Note: You must provide your own LVGL-enabled MicroPython binary named `micropython` in the root of the project directory)*
+## MicroPython Setup
+
+To run this launcher, you need a version of MicroPython compiled with LVGL bindings. For the BeagleBadge (Debian trixie), it is recommended to build natively on the device.
+
+### 1. Initialize Submodule
+On the host or device, ensure the submodule is initialized:
+
+```bash
+git submodule update --init --recursive
+```
+
+### 2. Install Build Dependencies (on Badge)
+Run these commands on the BeagleBadge:
+```bash
+sudo apt-get update
+sudo apt-get install -y build-essential libreadline-dev libffi-dev pkg-config
+```
+
+### 3. Native Compilation (on Badge)
+Building natively ensures architectural compatibility. 
+
+> [!IMPORTANT]
+> A small patch is required in the LVGL binding module to ensure headers are found.
+
+```bash
+# Patch micropython.mk
+sed -i 's|INC += -I$(LVGL_BINDING_DIR)|INC += -I$(LVGL_BINDING_DIR) -I$(LVGL_DIR)|' lv_micropython/user_modules/lv_binding_micropython/micropython.mk
+
+# Build mpy-cross
+cd lv_micropython/mpy-cross
+make -j$(nproc)
+
+# Build unix port with LVGL modules
+cd ../ports/unix
+make -j$(nproc) USER_C_MODULES=../../user_modules LV_CFLAGS="-DLV_LVGL_H_INCLUDE_SIMPLE"
+```
+
+### 4. Installation
+Copy the resulting binary to the root of the project directory on the badge.
+
+```bash
+cp ports/unix/build-standard/micropython ~/badge_launcher/micropython
+chmod +x ~/badge_launcher/micropython
+```
 
 ## Running the Launcher
 
