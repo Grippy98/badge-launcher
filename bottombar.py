@@ -24,16 +24,11 @@ class BottomBar:
         self.lbl_eth = lv.label(self.container)
         self.lbl_eth.set_text("")
         self.lbl_eth.set_style_text_color(lv.color_black(), 0)
+
         self.lbl_eth.align(lv.ALIGN.LEFT_MID, 5, 0)
         try:
             self.lbl_eth.set_style_text_font(lv.font_montserrat_14, 0)
         except: pass
-        
-        # WIFI (Center)
-        self.lbl_wifi = lv.label(self.container)
-        self.lbl_wifi.set_text("")
-        self.lbl_wifi.set_style_text_color(lv.color_black(), 0)
-        self.lbl_wifi.align(lv.ALIGN.CENTER, 0, 0)
         
         # USB (Right)
         self.lbl_usb = lv.label(self.container)
@@ -111,12 +106,7 @@ class BottomBar:
         else:
             self.lbl_eth.set_text("")
 
-        # Wifi
-        wifi_up, wifi_iface = self.get_net_status("wlan")
-        if wifi_up:
-            self.lbl_wifi.set_text(lv.SYMBOL.WIFI)
-        else:
-            self.lbl_wifi.set_text("")
+        # Wifi - Moved to Statusbar
             
         # USB
         cnt = self.get_usb_count()

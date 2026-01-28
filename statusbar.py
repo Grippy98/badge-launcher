@@ -31,7 +31,13 @@ class StatusBar:
         self.lbl_bat = lv.label(self.container)
         self.lbl_bat.set_text("BAT: --%")
         self.lbl_bat.set_style_text_color(lv.color_black(), 0)
+        self.lbl_bat.set_style_text_color(lv.color_black(), 0)
         self.lbl_bat.align(lv.ALIGN.RIGHT_MID, -5, 0)
+        
+        self.lbl_wifi = lv.label(self.container)
+        self.lbl_wifi.set_text("")
+        self.lbl_wifi.set_style_text_color(lv.color_black(), 0)
+        self.lbl_wifi.align(lv.ALIGN.RIGHT_MID, -60, 0) # Between Mem and Bat
         
         # State for CPU calc
         self.last_idle = 0
@@ -111,6 +117,26 @@ class StatusBar:
             self.lbl_bat.set_text(f"{char} {bat}%")
         else:
             self.lbl_bat.set_text("BAT: N/A")
+            
+        wifi_up, _ = self.get_net_status("wlan")
+        if wifi_up:
+             self.lbl_wifi.set_text(lv.SYMBOL.WIFI)
+        else:
+             self.lbl_wifi.set_text("")
+
+    def get_net_status(self, iface_prefix):
+        found_iface = None
+        is_up = False
+        try:
+            for d in os.listdir('/sys/class/net/'):
+                if d.startswith(iface_prefix):
+                    found_iface = d
+                    with open(f'/sys/class/net/{d}/operstate', 'r') as f:
+                        if f.read().strip() == "up":
+                            is_up = True
+                    break
+        except: pass
+        return is_up, found_iface
             
     def show(self):
         print("StatusBar: Showing")
