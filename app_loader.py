@@ -68,4 +68,9 @@ def load_apps_from_category(category_name):
     except Exception as e:
         print(f"Error loading category {category_name}: {e}")
         
+    # Custom Sort for Settings
+    if category_name.lower() == "settings":
+        ORDER = ["WiFi", "Bluetooth", "Sound", "Reboot"]
+        apps.sort(key=lambda x: ORDER.index(x.name) if hasattr(x, "name") and x.name in ORDER else 99)
+        
     return apps

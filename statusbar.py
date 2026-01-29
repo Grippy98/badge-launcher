@@ -37,7 +37,15 @@ class StatusBar:
         self.lbl_wifi = lv.label(self.container)
         self.lbl_wifi.set_text("")
         self.lbl_wifi.set_style_text_color(lv.color_black(), 0)
-        self.lbl_wifi.align(lv.ALIGN.RIGHT_MID, -60, 0) # Between Mem and Bat
+        self.lbl_wifi = lv.label(self.container)
+        self.lbl_wifi.set_text("")
+        self.lbl_wifi.set_style_text_color(lv.color_black(), 0)
+        self.lbl_wifi.align(lv.ALIGN.RIGHT_MID, -90, 0) # Shifted Left
+        
+        self.lbl_bt = lv.label(self.container)
+        self.lbl_bt.set_text("")
+        self.lbl_bt.set_style_text_color(lv.color_black(), 0)
+        self.lbl_bt.align(lv.ALIGN.RIGHT_MID, -70, 0) # Between Wifi and Bat
         
         # State for CPU calc
         self.last_idle = 0
@@ -123,6 +131,24 @@ class StatusBar:
              self.lbl_wifi.set_text(lv.SYMBOL.WIFI)
         else:
              self.lbl_wifi.set_text("")
+             
+        if self.get_bt_status():
+             self.lbl_bt.set_text(lv.SYMBOL.BLUETOOTH)
+        else:
+             self.lbl_bt.set_text("")
+
+    def get_bt_status(self):
+        try:
+            # Check for active connections in sysfs
+            # usually /sys/class/bluetooth/hci0/conn*
+            base = "/sys/class/bluetooth/hci0"
+            if not os.path.exists(base): return False
+            
+            for d in os.listdir(base):
+                if d.startswith("conn"):
+                    return True
+        except: pass
+        return False
 
     def get_net_status(self, iface_prefix):
         found_iface = None

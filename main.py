@@ -24,6 +24,7 @@ def main():
     tty.init()
     
     # App Loop
+    # App Loop
     app_menu = menu.MenuApp()
     app_menu.enter()
     
