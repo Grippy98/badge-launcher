@@ -70,7 +70,7 @@ def load_apps_from_category(category_name):
         
     # Custom Sort for Settings
     if category_name.lower() == "settings":
-        ORDER = ["WiFi", "Bluetooth", "Sound", "Reboot"]
+        ORDER = ["WiFi", "Bluetooth", "Sound", "About", "Reboot"]
         apps.sort(key=lambda x: ORDER.index(x.name) if hasattr(x, "name") and x.name in ORDER else 99)
         
     return apps
