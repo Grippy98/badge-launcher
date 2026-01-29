@@ -85,17 +85,28 @@ class BottomBar:
         except: return 0
 
     def update(self, t):
-        # Eth
+        # Network Status Priority: Ethernet > Wifi
+        iface = None
+        icon = ""
+        
+        # Check Ethernet
         eth_up, eth_iface = self.get_net_status("en")
-        if not eth_up: eth_up, eth_iface = self.get_net_status("eth") 
+        if not eth_up: eth_up, eth_iface = self.get_net_status("eth")
         
         if eth_up and eth_iface:
-            ip = self.get_ip_address(eth_iface)
-            icon = lv.SYMBOL.ETHERNET if hasattr(lv.SYMBOL, 'ETHERNET') else ""
-            name = eth_iface
-            if len(name) > 6: name = name[:6] + "..." # Optional truncation if needed
-            
-            display_name = eth_iface
+            iface = eth_iface
+            icon = lv.SYMBOL.ETHERNET if hasattr(lv.SYMBOL, 'ETHERNET') else "ETH"
+        else:
+            # Check Wifi if Ethernet is down
+            wifi_up, wifi_iface = self.get_net_status("wl")
+            if wifi_up and wifi_iface:
+                iface = wifi_iface
+                icon = lv.SYMBOL.WIFI if hasattr(lv.SYMBOL, 'WIFI') else "WIFI"
+
+        if iface:
+            ip = self.get_ip_address(iface)
+            display_name = iface
+            # Truncate if too long (e.g. enx00e04c...)
             if len(display_name) > 10: 
                  display_name = display_name[:8] + ".."
             

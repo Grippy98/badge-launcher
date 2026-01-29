@@ -104,7 +104,7 @@ class StatusBar:
             with open('/sys/class/power_supply/bq27541-0/status', 'r') as f:
                 st = f.read().strip()
                 if st == "Charging":
-                    status_char = "^"
+                    status_char = lv.SYMBOL.CHARGE if hasattr(lv.SYMBOL, 'CHARGE') else "^"
                 elif st == "Discharging" or st == "Not charging":
                     status_char = "v"
                 elif st == "Full":
@@ -122,7 +122,14 @@ class StatusBar:
         self.lbl_mem.set_text(f"MEM: {int(mem)}%")
         
         if bat >= 0:
-            self.lbl_bat.set_text(f"{char} {bat}%")
+            # Determine Battery Icon
+            bat_icon = lv.SYMBOL.BATTERY_EMPTY
+            if bat > 90: bat_icon = lv.SYMBOL.BATTERY_FULL
+            elif bat > 70: bat_icon = lv.SYMBOL.BATTERY_3
+            elif bat > 50: bat_icon = lv.SYMBOL.BATTERY_2
+            elif bat > 20: bat_icon = lv.SYMBOL.BATTERY_1
+            
+            self.lbl_bat.set_text(f"{char} {bat_icon} {bat}%")
         else:
             self.lbl_bat.set_text("BAT: N/A")
             
