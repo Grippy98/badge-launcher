@@ -5,4 +5,5 @@ killall -q micropython
 sleep 0.5
 # Run the app
 cd ~/badge_launcher
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/root/badge_launcher/libtuxdriver/unix
 ./micropython main.py
