@@ -9,3 +9,4 @@ Badge-Launcher/build_log_2.txt
 /tools
 /Badge-Launcher/src/doomgeneric
 applications/apps/__pycache__/tux_driver_app.cpython-314.pyc
+*.deb

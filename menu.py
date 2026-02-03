@@ -120,22 +120,7 @@ class MenuApp:
         self.screen.set_style_bg_color(lv.color_white(), 0)
         self.screen.set_style_bg_opa(lv.OPA.COVER, 0)
         
-        # Ensure Input Group has Menu Buttons
-        import input
-        if input.driver and input.driver.group:
-            input.driver.group.remove_all_objs()
-            if self.menu_list_cont:
-                cnt = self.menu_list_cont.get_child_count()
-                for i in range(cnt):
-                    btn = self.menu_list_cont.get_child(i)
-                    input.driver.group.add_obj(btn)
-        
-        # Main Flex (Row)
-        main_flex = lv.obj(self.screen)
-        main_flex.set_size(lv.pct(100), lv.pct(100))
-        self.screen.set_style_bg_opa(lv.OPA.COVER, 0)
-        
-        # Ensure Input Group has Menu Buttons
+        # Ensure Input Group is clear before initializing UI
         import input
         if input.driver and input.driver.group:
             input.driver.group.remove_all_objs()

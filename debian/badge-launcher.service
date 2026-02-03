@@ -4,13 +4,15 @@ After=multi-user.target network.target
 
 [Service]
 Type=simple
-ExecStart=/root/badge_launcher/run.sh
-WorkingDirectory=/root/badge_launcher
+ExecStart=/opt/badge_launcher/run.sh
+WorkingDirectory=/opt/badge_launcher
 Restart=always
 RestartSec=3
 User=root
 Environment=HOME=/root
 Environment=TERM=linux
+ExecStartPre=-/bin/sh -c 'echo 0 > /sys/class/graphics/fbcon/cursor_blink'
+ExecStartPre=-/usr/bin/setterm -cursor off > /dev/tty0
 
 [Install]
 WantedBy=multi-user.target

@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+# Reload systemd and update library cache
+if [ -d /run/systemd/system ]; then
+    ldconfig
+    systemctl daemon-reload
+    systemctl enable badge-launcher.service
+    # Reload udev rules for the hardware
+    if command -v udevadm > /dev/null; then
+        udevadm control --reload-rules && udevadm trigger
+    fi
+fi
+
+exit 0

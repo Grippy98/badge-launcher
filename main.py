@@ -13,6 +13,8 @@ import tty
 import time
 import config
 
+import os
+
 def main():
     config.load()
     lv.init()
