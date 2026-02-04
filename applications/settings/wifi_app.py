@@ -1,4 +1,12 @@
-import app
+"""WiFi configuration application.
+
+Scan for available networks, connect to WiFi access points, and manage
+wireless connections using NetworkManager (nmcli).
+"""
+
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import lvgl as lv
 import os
 import time
@@ -391,4 +399,3 @@ class WiFiApp(app.App):
     def exit(self):
         if self.on_exit:
             self.on_exit()
-

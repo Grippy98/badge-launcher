@@ -1,5 +1,13 @@
+"""Classic Snake game for the Badge Launcher.
+
+Navigate the snake using arrow keys to eat food and grow longer.
+Avoid hitting yourself. The game wraps around screen edges.
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import random
 import time
 
@@ -44,9 +52,7 @@ class SnakeApp(app.App):
             input.driver.group.add_obj(self.screen)
             lv.group_focus_obj(self.screen)
             input.driver.group.set_editing(True) # Force keys to widget
-        
-        # self.screen.add_event_cb(self.on_key, lv.EVENT.KEY, None) # Removed
-        
+
         # Determine Grid Size
         disp = lv.display_get_default()
         width = disp.get_horizontal_resolution()
@@ -85,11 +91,20 @@ class SnakeApp(app.App):
         self.game_over_label.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
         self.game_over_label.center()
         self.game_over_label.add_flag(lv.obj.FLAG.HIDDEN)
-        
+
+        # Keyboard event support for SDL mode
+        self.current_key = 0
+        self.key_state = lv.INDEV_STATE.RELEASED
+        self.screen.add_event_cb(self.on_key_event, lv.EVENT.KEY, None)
+
+        # Add to input group for keyboard focus
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.add_obj(self.screen)
+            lv.group_focus_obj(self.screen)
+
         self.reset_game()
-        
-        self.reset_game()
-        
+
         self.last_tick = time.ticks_ms()
         # Timer (Fast for input polling)
         self.timer = lv.timer_create(self.game_loop, 50, None)
@@ -140,17 +155,27 @@ class SnakeApp(app.App):
                 break
         # Position updated in render
 
+    def on_key_event(self, e):
+        """Handle LVGL keyboard events (for SDL mode)."""
+        key = e.get_key()
+        self.current_key = key
+        self.key_state = lv.INDEV_STATE.PRESSED
+
     def poll_input(self):
         import input
-        if not input.driver: return
-        
-        key = input.driver.last_key
-        state = input.driver.state
-        
+
+        # Try SDL/LVGL keyboard first
+        key = self.current_key
+        state = self.key_state
+
+        # Fall back to hardware input driver if no SDL key
+        if state != lv.INDEV_STATE.PRESSED and input.driver:
+            key = input.driver.last_key
+            state = input.driver.state
+
         if state == lv.INDEV_STATE.PRESSED:
-            print(f"Poll: {key}")
-            # Directions
-        if state == lv.INDEV_STATE.PRESSED:
+            # Reset key state after processing
+            self.key_state = lv.INDEV_STATE.RELEASED
             # Directions
             # Handle standard UP/DOWN and legacy PREV(11)/NEXT(9) maps
             if (key == lv.KEY.UP or key == 11) and self.direction != 1:

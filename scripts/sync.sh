@@ -22,6 +22,6 @@ sshpass -p "$BADGE_PASS" rsync -avz --delete --exclude '.git' --exclude '.gitign
 
 # Set permissions
 echo "Setting permissions..."
-sshpass -p "$BADGE_PASS" ssh -o StrictHostKeyChecking=no "$BADGE_USER@$BADGE_IP" "chmod +x $DEST_DIR/run.sh $DEST_DIR/micropython 2>/dev/null || true"
+sshpass -p "$BADGE_PASS" ssh -o StrictHostKeyChecking=no "$BADGE_USER@$BADGE_IP" "chmod +x $DEST_DIR/scripts/run.sh $DEST_DIR/micropython 2>/dev/null || true"
 
 echo "Sync complete!"

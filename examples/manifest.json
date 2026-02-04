@@ -1,0 +1,73 @@
+{
+  "version": "1.0",
+  "last_updated": "2026-02-04",
+  "store_url": "https://github.com/YOUR_ORG/badge-app-store",
+  "description": "Community apps for the TI Badge launcher",
+  "apps": [
+    {
+      "id": "weather",
+      "name": "Weather",
+      "version": "1.0.0",
+      "author": "John Doe",
+      "description": "Check current weather conditions and forecast",
+      "category": "tools",
+      "repo": "https://github.com/example/weather-app.git",
+      "main_file": "weather_app.py",
+      "dependencies": [],
+      "requires_img2bin": false,
+      "license": "MIT"
+    },
+    {
+      "id": "calculator",
+      "name": "Calculator",
+      "version": "1.2.0",
+      "author": "Jane Smith",
+      "description": "Simple calculator with basic operations",
+      "category": "tools",
+      "repo": "https://github.com/example/calculator-app.git",
+      "main_file": "calculator_app.py",
+      "dependencies": [],
+      "requires_img2bin": false,
+      "license": "MIT"
+    },
+    {
+      "id": "snake-deluxe",
+      "name": "Snake Deluxe",
+      "version": "2.0.0",
+      "author": "Game Developer",
+      "description": "Classic snake game with power-ups and high scores",
+      "category": "games",
+      "repo": "https://github.com/example/snake-deluxe.git",
+      "main_file": "snake_deluxe_app.py",
+      "dependencies": [],
+      "requires_img2bin": false,
+      "license": "GPL-3.0"
+    },
+    {
+      "id": "photo-gallery",
+      "name": "Photo Gallery",
+      "version": "1.5.0",
+      "author": "Media Dev",
+      "description": "Enhanced photo viewer with slideshow and filters",
+      "category": "media",
+      "repo": "https://github.com/example/photo-gallery.git",
+      "main_file": "photo_gallery_app.py",
+      "dependencies": [],
+      "requires_img2bin": true,
+      "license": "MIT"
+    },
+    {
+      "id": "system-monitor",
+      "name": "System Monitor",
+      "version": "1.0.0",
+      "author": "Admin Tools",
+      "description": "Monitor CPU, RAM, disk, and network usage",
+      "category": "tools",
+      "repo": "https://github.com/example/system-monitor.git",
+      "main_file": "system_monitor_app.py",
+      "dependencies": ["psutil"],
+      "requires_img2bin": false,
+      "license": "Apache-2.0"
+    }
+  ]
+}

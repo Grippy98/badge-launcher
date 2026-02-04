@@ -1,7 +1,17 @@
+"""Bottom status bar displaying network and USB device information.
+
+Shows Ethernet/WiFi connection status with IP address and USB device count.
+"""
+
 import lvgl as lv
 import os
 
 class BottomBar:
+    """Bottom bar showing network interface and USB status.
+
+    Displays connection status prioritizing Ethernet over WiFi,
+    with IP address and USB device count.
+    """
     def __init__(self):
         self.container = lv.obj(lv.layer_top())
         self.container.set_size(lv.pct(100), 22)
@@ -36,16 +46,32 @@ class BottomBar:
         self.lbl_usb.set_style_text_color(lv.color_black(), 0)
         self.lbl_usb.align(lv.ALIGN.RIGHT_MID, -5, 0)
         try:
-             self.lbl_usb.set_style_text_font(lv.font_montserrat_14, 0)
+            self.lbl_usb.set_style_text_font(lv.font_montserrat_14, 0)
         except: pass
         
-        # Timer
-        self.timer = lv.timer_create(self.update, 2000, None)
-        self.update(None)
+        # Timer (Update every 10000ms for E-ink to reduce flashing)
+        # Network status changes infrequently, so 10s is reasonable
+        self.timer = lv.timer_create(self.update, 10000, None)
 
-    # ... getters same ...
+        # Check if we're on macOS/BSD (SDL mode) - pause timer to avoid flickering
+        import sys
+        if sys.platform in ['darwin', 'freebsd', 'openbsd', 'netbsd']:
+            self.timer.set_period(0)  # Pause timer
+            # Set static empty values for SDL mode
+            self.lbl_eth.set_text("")
+            self.lbl_usb.set_text("")
+        else:
+            self.update(None)
 
     def get_ip_address(self, iface):
+        """Get IPv4 address for a network interface.
+
+        Args:
+            iface: Network interface name (e.g., 'eth0', 'wlan0')
+
+        Returns:
+            IP address string or None if not found
+        """
         try:
             # os.popen missing, use os.system redirect
             os.system(f"ip -4 addr show {iface} > /tmp/ip_status.txt")
@@ -61,6 +87,14 @@ class BottomBar:
         return None
 
     def get_net_status(self, iface_prefix):
+        """Check if a network interface matching prefix is up.
+
+        Args:
+            iface_prefix: Interface name prefix (e.g., 'en', 'eth', 'wl')
+
+        Returns:
+            Tuple of (is_up: bool, interface_name: str or None)
+        """
         found_iface = None
         is_up = False
         try:
@@ -73,8 +107,13 @@ class BottomBar:
                     break
         except: pass
         return is_up, found_iface
-        
+
     def get_usb_count(self):
+        """Count connected USB devices.
+
+        Returns:
+            Number of USB devices (excludes USB hubs and virtual devices)
+        """
         try:
             count = 0
             for d in os.listdir('/sys/bus/usb/devices/'):
@@ -85,14 +124,19 @@ class BottomBar:
         except: return 0
 
     def update(self, t):
+        """Update bottom bar display with current network and USB status.
+
+        Args:
+            t: Timer parameter (unused, required by LVGL timer callback)
+        """
         # Network Status Priority: Ethernet > Wifi
         iface = None
         icon = ""
-        
+
         # Check Ethernet
         eth_up, eth_iface = self.get_net_status("en")
         if not eth_up: eth_up, eth_iface = self.get_net_status("eth")
-        
+
         if eth_up and eth_iface:
             iface = eth_iface
             icon = lv.SYMBOL.ETHERNET if hasattr(lv.SYMBOL, 'ETHERNET') else "ETH"
@@ -103,31 +147,35 @@ class BottomBar:
                 iface = wifi_iface
                 icon = lv.SYMBOL.WIFI if hasattr(lv.SYMBOL, 'WIFI') else "WIFI"
 
+        # Only update if text has changed
+        new_eth_text = ""
         if iface:
             ip = self.get_ip_address(iface)
             display_name = iface
             # Truncate if too long (e.g. enx00e04c...)
-            if len(display_name) > 10: 
-                 display_name = display_name[:8] + ".."
-            
-            if ip:
-                self.lbl_eth.set_text(f"{icon} {display_name} {ip}")
-            else:
-                self.lbl_eth.set_text(f"{icon} {display_name}")
-        else:
-            self.lbl_eth.set_text("")
+            if len(display_name) > 10:
+                display_name = display_name[:8] + ".."
 
-        # Wifi - Moved to Statusbar
-            
-        # USB
+            if ip:
+                new_eth_text = f"{icon} {display_name} {ip}"
+            else:
+                new_eth_text = f"{icon} {display_name}"
+
+        if self.lbl_eth.get_text() != new_eth_text:
+            self.lbl_eth.set_text(new_eth_text)
+
+        # USB - only update if changed
         cnt = self.get_usb_count()
-        if cnt > 2: 
+        new_usb_text = ""
+        if cnt > 2:
             sym = lv.SYMBOL.USB if hasattr(lv.SYMBOL, 'USB') else "USB"
-            self.lbl_usb.set_text(f"{sym} {cnt}")
-        else:
-            self.lbl_usb.set_text("")
-            
+            new_usb_text = f"{sym} {cnt}"
+
+        if self.lbl_usb.get_text() != new_usb_text:
+            self.lbl_usb.set_text(new_usb_text)
+
     def show(self):
+        """Show the bottom bar and restore default styling."""
         try:
             self.container.remove_flag(lv.obj.FLAG.HIDDEN)
         except: pass
@@ -135,10 +183,11 @@ class BottomBar:
         self.container.set_size(lv.pct(100), 22)
         self.container.set_style_bg_opa(lv.OPA._80, 0)
         self.container.set_style_border_width(2, 0)
-        
+
     def hide(self):
+        """Hide the bottom bar by moving it offscreen and clearing styling."""
         try:
-             self.container.add_flag(lv.obj.FLAG.HIDDEN)
+            self.container.add_flag(lv.obj.FLAG.HIDDEN)
         except: pass
         self.container.align(lv.ALIGN.BOTTOM_MID, 0, 100) # Offscreen down
         self.container.set_size(0, 0)

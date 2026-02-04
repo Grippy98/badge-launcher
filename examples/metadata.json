@@ -1,0 +1,21 @@
+{
+  "id": "my-app",
+  "name": "My App Name",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "description": "A brief description of what your app does. Keep it under 80 characters for best display in the app store.",
+  "category": "apps",
+  "repo": "https://github.com/USERNAME/my-app-repo.git",
+  "main_file": "my_app_app.py",
+  "dependencies": [],
+  "requires_img2bin": false,
+  "license": "MIT",
+  "homepage": "https://github.com/USERNAME/my-app-repo",
+  "icon": "icon.bin",
+  "screenshots": [
+    "screenshots/main.png",
+    "screenshots/settings.png"
+  ],
+  "tags": ["utility", "productivity"],
+  "min_badge_version": "1.0.0"
+}

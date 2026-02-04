@@ -4,7 +4,7 @@ After=multi-user.target network.target
 
 [Service]
 Type=simple
-ExecStart=/opt/badge_launcher/run.sh
+ExecStart=/opt/badge_launcher/scripts/run.sh
 WorkingDirectory=/opt/badge_launcher
 Restart=always
 RestartSec=3

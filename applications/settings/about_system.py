@@ -1,7 +1,14 @@
+"""System information application.
+
+Displays system details including OS version, kernel, memory usage,
+storage, and CPU information.
+"""
+
 import lvgl as lv
-import app
-import os
 import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
+import os
 
 class AboutApp(app.App):
     def __init__(self):

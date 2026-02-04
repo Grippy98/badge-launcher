@@ -1,5 +1,7 @@
-import os
-import sys
+"""TTY configuration for console input/output.
+
+Disables echo and canonical mode, hides cursor for badge UI.
+"""
 
 import os
 import sys
@@ -8,6 +10,11 @@ import sys
 TTY_DEVS = ["/dev/tty0", "/dev/tty1", "/dev/console"]
 
 def init():
+    """Configure TTY devices for raw input and hide cursor.
+
+    Disables echo and canonical mode on console devices,
+    and hides the text cursor for clean UI display.
+    """
     for dev in TTY_DEVS:
         try:
             # Disable echo and canonical mode on the console
@@ -25,10 +32,10 @@ def init():
                 
             print(f"Configured {dev}")
         except Exception as e:
-            # print(f"Failed to configure {dev}: {e}")
             pass
 
 def cleanup():
+    """Restore TTY devices to normal settings and show cursor."""
     for dev in TTY_DEVS:
         try:
             # Restore settings (sane puts it back to normal)

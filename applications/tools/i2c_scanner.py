@@ -1,5 +1,13 @@
+"""I2C bus scanner tool.
+
+Scans the I2C bus for connected devices and displays their addresses.
+Useful for hardware debugging and device discovery.
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import time
 import os
 
@@ -41,9 +49,20 @@ class I2CScannerApp(app.App):
                 
         if not self.buses:
             self.buses = [0, 2] # Fallback if everything fails
-            
+
+        # Keyboard event support for SDL mode
+        self.current_key = 0
+        self.key_state = lv.INDEV_STATE.RELEASED
+        self.screen.add_event_cb(self.on_key_event, lv.EVENT.KEY, None)
+
+        # Add to input group for keyboard focus
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.add_obj(self.screen)
+            lv.group_focus_obj(self.screen)
+
         self.build_ui()
-        
+
         self.prev_state = lv.INDEV_STATE.RELEASED
         self.timer = lv.timer_create(self.loop, 50, None)
 
@@ -210,15 +229,28 @@ class I2CScannerApp(app.App):
                 
         self.state = "SHOW"
 
+    def on_key_event(self, e):
+        """Handle LVGL keyboard events (for SDL mode)."""
+        key = e.get_key()
+        self.current_key = key
+        self.key_state = lv.INDEV_STATE.PRESSED
+
     def loop(self, t):
         import input
-        if not input.driver: return
-        
-        key = input.driver.last_key
-        state = input.driver.state
-        
+
+        # Try SDL/LVGL keyboard first
+        key = self.current_key
+        state = self.key_state
+
+        # Fall back to hardware input driver if no SDL key
+        if state != lv.INDEV_STATE.PRESSED and input.driver:
+            key = input.driver.last_key
+            state = input.driver.state
+
         # Edge Detection
         if state == lv.INDEV_STATE.PRESSED and self.prev_state == lv.INDEV_STATE.RELEASED:
+            # Reset key state after processing
+            self.key_state = lv.INDEV_STATE.RELEASED
             print(f"I2C Key: {key}")
 
 

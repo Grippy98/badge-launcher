@@ -1,5 +1,13 @@
+"""Serial port monitor tool.
+
+Monitor serial port communication for debugging and device interaction.
+Displays incoming serial data in real-time.
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import tty
 
 class SerialMonitorApp(app.App):

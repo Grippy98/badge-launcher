@@ -1,5 +1,12 @@
+"""About application showing Badge Launcher version information.
+
+Simple information screen displaying the badge launcher version and credits.
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 
 class AboutApp(app.App):
     def __init__(self):

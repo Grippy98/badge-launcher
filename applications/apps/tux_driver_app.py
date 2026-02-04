@@ -1,7 +1,14 @@
-import app
+"""Tux Droid Robot control application.
+
+Controls Tux Droid robot via RF dongle. Supports movement control,
+LED manipulation, and status monitoring.
+"""
+
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import lvgl as lv
 import os
-import sys
 import time
 
 # Add libtuxdriver to path

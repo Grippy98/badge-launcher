@@ -1,5 +1,13 @@
+"""DVD screensaver application.
+
+Bouncing logo screensaver. The logo bounces around the screen.
+Use arrow keys to change logos and adjust speed.
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import time
 import random
 
@@ -8,16 +16,21 @@ class DVDApp(app.App):
         super().__init__("DVD Screensaver")
         self.screen = None
         self.img_dvd = None
-        
-        # Navigation
-        self.asset_files = ['dvd.bin', 'sleeping.bin', 'ti_logo.bin', 'beagle_logo.bin']
+
+        self.asset_files = ['assets/dvd.bin', 'assets/sleeping.bin', 'assets/ti_logo.bin', 'assets/beagle_logo.bin']
         self.current_asset_idx = 0
-        self.dvd_dsc = None # Current Descriptor
-        
-        # Physics
-        self.x_speed = 2 # Initial speed slower (was 3)
+        self.dvd_dsc = None
+
+        self.asset_dimensions = {
+            'assets/dvd.bin': (90, 65, 19, 35),
+            'assets/sleeping.bin': (105, 105, 12, 12),
+            'assets/ti_logo.bin': (128, 128, 0, 0),
+            'assets/beagle_logo.bin': (128, 128, 0, 0)
+        }
+
+        self.x_speed = 2
         self.y_speed = 2
-        
+
         self.anim_timer = None
 
     def load_current_asset(self):
@@ -25,21 +38,18 @@ class DVDApp(app.App):
         try:
             with open(filename, 'rb') as f:
                 data = f.read()
-            
-            # Create new descriptor
+
             dsc = lv.image_dsc_t()
             dsc.header.magic = lv.IMAGE_HEADER_MAGIC
             dsc.header.cf = lv.COLOR_FORMAT.L8
             dsc.header.w = 128
             dsc.header.h = 128
             dsc.data_size = len(data)
-            dsc.data = data # Python keeps reference if dsc kept? 
-            # Note: micropython lvgl might need explicit reference to data buffer
+            dsc.data = data
             self.dvd_data_ref = data 
             
             self.dvd_dsc = dsc
-            
-            # Apply to image if exists
+
             if self.img_dvd:
                 self.img_dvd.set_src(self.dvd_dsc)
                 
@@ -52,35 +62,42 @@ class DVDApp(app.App):
         self.screen = lv.obj()
         self.screen.set_style_bg_color(lv.color_white(), 0)
         self.screen.set_style_bg_opa(lv.OPA.COVER, 0)
-        
+
+        self.screen.set_size(lv.pct(100), lv.pct(100))
+        self.screen.set_style_pad_all(0, 0)
+
+        try:
+            self.screen.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+        except:
+            pass
+
         lv.screen_load(self.screen)
-        
-        # Initial Load
+
         self.load_current_asset()
-        
-        # Image Widget
+
         self.img_dvd = lv.image(self.screen)
         if self.dvd_dsc:
             self.img_dvd.set_src(self.dvd_dsc)
         else:
-            # Fallback text if no assets found ever
             self.img_dvd = lv.label(self.screen)
             self.img_dvd.set_text("?")
             
         self.img_dvd.set_size(128, 128)
-        self.colorize()
 
-        # Random Pos
         sw = self.screen.get_width()
         sh = self.screen.get_height()
-        w = 128
-        h = 128
-        self.img_dvd.set_pos(random.randint(0, sw - w), random.randint(0, sh - h))
+        current_file = self.asset_files[self.current_asset_idx]
+        content_w, content_h, offset_x, offset_y = self.asset_dimensions.get(
+            current_file, (128, 128, 0, 0)
+        )
+        max_x = sw - content_w - offset_x
+        max_y = sh - content_h - offset_y
+        self.img_dvd.set_pos(random.randint(-offset_x, max_x), random.randint(-offset_y, max_y))
 
         # Input
         import input
         if input.driver and input.driver.group:
-            input.driver.group.remove_all_objs() # Isolate input
+            input.driver.group.remove_all_objs()
             input.driver.group.add_obj(self.screen)
             lv.group_focus_obj(self.screen)
             
@@ -88,29 +105,13 @@ class DVDApp(app.App):
         
         self.anim_timer = lv.timer_create(self.animate, 33, None)
 
-    def colorize(self):
-        # Random dark colors
-        colors = [
-            lv.palette_main(lv.PALETTE.RED),
-            lv.palette_main(lv.PALETTE.GREEN),
-            lv.palette_main(lv.PALETTE.BLUE),
-            lv.palette_main(lv.PALETTE.ORANGE),
-            lv.palette_main(lv.PALETTE.PURPLE),
-            lv.palette_main(lv.PALETTE.TEAL)
-        ]
-        col = random.choice(colors)
-        self.img_dvd.set_style_image_recolor(col, 0)
-        self.img_dvd.set_style_image_recolor_opa(lv.OPA.COVER, 0)
-
     def change_speed(self, delta):
         mag_x = abs(self.x_speed)
         mag_y = abs(self.y_speed)
-        
-        # Change magnitude, clamp between 1 and 10
+
         mag_x = max(1, min(10, mag_x + delta))
         mag_y = max(1, min(10, mag_y + delta))
-        
-        # Apply back with original sign
+
         self.x_speed = mag_x * (1 if self.x_speed >= 0 else -1)
         self.y_speed = mag_y * (1 if self.y_speed >= 0 else -1)
         print(f"Speed: {mag_x}")
@@ -118,46 +119,48 @@ class DVDApp(app.App):
     def change_asset(self, delta):
         self.current_asset_idx = (self.current_asset_idx + delta) % len(self.asset_files)
         self.load_current_asset()
-        # Reset color maybe? or keep it.
-        self.colorize()
 
     def animate(self, t):
         if not self.img_dvd:
             return
-            
+
         x = self.img_dvd.get_x()
         y = self.img_dvd.get_y()
         sw = self.screen.get_width()
         sh = self.screen.get_height()
-        w, h = 128, 128
-        
+
+        current_file = self.asset_files[self.current_asset_idx]
+        content_w, content_h, offset_x, offset_y = self.asset_dimensions.get(
+            current_file, (128, 128, 0, 0)
+        )
+
         new_x = x + self.x_speed
         new_y = y + self.y_speed
-        
+
         bounced = False
-        
-        if new_x <= 0: 
+
+        content_x = new_x + offset_x
+        content_y = new_y + offset_y
+
+        if content_x <= 0:
             self.x_speed = abs(self.x_speed)
-            new_x = 0
+            new_x = -offset_x
             bounced = True
-        elif new_x + w >= sw:
+        elif content_x + content_w >= sw:
             self.x_speed = -abs(self.x_speed)
-            new_x = sw - w
+            new_x = sw - content_w - offset_x
             bounced = True
-            
-        if new_y <= 0:
+
+        if content_y <= 0:
             self.y_speed = abs(self.y_speed)
-            new_y = 0
+            new_y = -offset_y
             bounced = True
-        elif new_y + h >= sh:
+        elif content_y + content_h >= sh:
             self.y_speed = -abs(self.y_speed)
-            new_y = sh - h
+            new_y = sh - content_h - offset_y
             bounced = True
-            
+
         self.img_dvd.set_pos(int(new_x), int(new_y))
-        
-        if bounced:
-            self.colorize()
 
     def on_key(self, e):
         key = e.get_key()
@@ -181,3 +184,4 @@ class DVDApp(app.App):
         if self.screen:
             self.screen.delete()
             self.screen = None
+        self.img_dvd = None

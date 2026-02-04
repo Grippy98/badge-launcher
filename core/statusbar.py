@@ -1,3 +1,8 @@
+"""System status bar displaying CPU, RAM, battery, WiFi, and Bluetooth status.
+
+Monitors system resources via /proc and /sys, updating every 2 seconds.
+"""
+
 import lvgl as lv
 import os
 import time
@@ -31,12 +36,8 @@ class StatusBar:
         self.lbl_bat = lv.label(self.container)
         self.lbl_bat.set_text("BAT: --%")
         self.lbl_bat.set_style_text_color(lv.color_black(), 0)
-        self.lbl_bat.set_style_text_color(lv.color_black(), 0)
         self.lbl_bat.align(lv.ALIGN.RIGHT_MID, -5, 0)
         
-        self.lbl_wifi = lv.label(self.container)
-        self.lbl_wifi.set_text("")
-        self.lbl_wifi.set_style_text_color(lv.color_black(), 0)
         self.lbl_wifi = lv.label(self.container)
         self.lbl_wifi.set_text("")
         self.lbl_wifi.set_style_text_color(lv.color_black(), 0)
@@ -51,9 +52,22 @@ class StatusBar:
         self.last_idle = 0
         self.last_total = 0
         
-        # Timer (Update every 2000ms)
-        self.timer = lv.timer_create(self.update, 2000, None)
-        self.update(None)
+        # Timer (Update every 5000ms for E-ink to reduce flashing)
+        # For E-ink displays, less frequent updates = less flashing
+        self.timer = lv.timer_create(self.update, 5000, None)
+
+        # Check if we're on macOS/BSD (SDL mode) - pause timer to avoid flickering
+        import sys
+        if sys.platform in ['darwin', 'freebsd', 'openbsd', 'netbsd']:
+            self.timer.set_period(0)  # Pause timer
+            # Set static values for SDL mode
+            self.lbl_cpu.set_text("CPU: --")
+            self.lbl_mem.set_text("MEM: --")
+            self.lbl_bat.set_text("BAT: --")
+            self.lbl_wifi.set_text("")
+            self.lbl_bt.set_text("")
+        else:
+            self.update(None)
 
     def get_cpu_usage(self):
         try:
@@ -78,7 +92,6 @@ class StatusBar:
     def get_mem_usage(self):
         try:
             total = 0
-            free = 0
             avail = 0
             with open('/proc/meminfo', 'r') as f:
                 for line in f:
@@ -117,10 +130,16 @@ class StatusBar:
         cpu = self.get_cpu_usage()
         mem = self.get_mem_usage()
         bat, char = self.get_bat_status()
-        
-        self.lbl_cpu.set_text(f"CPU: {int(cpu)}%")
-        self.lbl_mem.set_text(f"MEM: {int(mem)}%")
-        
+
+        # Only update labels if values have changed to avoid unnecessary redraws
+        new_cpu_text = f"CPU: {int(cpu)}%"
+        if self.lbl_cpu.get_text() != new_cpu_text:
+            self.lbl_cpu.set_text(new_cpu_text)
+
+        new_mem_text = f"MEM: {int(mem)}%"
+        if self.lbl_mem.get_text() != new_mem_text:
+            self.lbl_mem.set_text(new_mem_text)
+
         if bat >= 0:
             # Determine Battery Icon
             bat_icon = lv.SYMBOL.BATTERY_EMPTY
@@ -128,21 +147,23 @@ class StatusBar:
             elif bat > 70: bat_icon = lv.SYMBOL.BATTERY_3
             elif bat > 50: bat_icon = lv.SYMBOL.BATTERY_2
             elif bat > 20: bat_icon = lv.SYMBOL.BATTERY_1
-            
-            self.lbl_bat.set_text(f"{char} {bat_icon} {bat}%")
+
+            new_bat_text = f"{char} {bat_icon} {bat}%"
+            if self.lbl_bat.get_text() != new_bat_text:
+                self.lbl_bat.set_text(new_bat_text)
         else:
-            self.lbl_bat.set_text("BAT: N/A")
-            
+            if self.lbl_bat.get_text() != "BAT: N/A":
+                self.lbl_bat.set_text("BAT: N/A")
+
         wifi_up, _ = self.get_net_status("wlan")
-        if wifi_up:
-             self.lbl_wifi.set_text(lv.SYMBOL.WIFI)
-        else:
-             self.lbl_wifi.set_text("")
-             
-        if self.get_bt_status():
-             self.lbl_bt.set_text(lv.SYMBOL.BLUETOOTH)
-        else:
-             self.lbl_bt.set_text("")
+        new_wifi_text = lv.SYMBOL.WIFI if wifi_up else ""
+        if self.lbl_wifi.get_text() != new_wifi_text:
+            self.lbl_wifi.set_text(new_wifi_text)
+
+        bt_up = self.get_bt_status()
+        new_bt_text = lv.SYMBOL.BLUETOOTH if bt_up else ""
+        if self.lbl_bt.get_text() != new_bt_text:
+            self.lbl_bt.set_text(new_bt_text)
 
     def get_bt_status(self):
         try:
@@ -172,7 +193,6 @@ class StatusBar:
         return is_up, found_iface
             
     def show(self):
-        print("StatusBar: Showing")
         try:
             self.container.remove_flag(lv.obj.FLAG.HIDDEN)
         except: pass
@@ -182,7 +202,6 @@ class StatusBar:
         self.container.set_style_border_width(2, 0)
         
     def hide(self):
-        print("StatusBar: Hiding")
         try:
             self.container.add_flag(lv.obj.FLAG.HIDDEN)
         except: pass

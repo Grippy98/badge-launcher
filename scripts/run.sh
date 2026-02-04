@@ -8,7 +8,8 @@ echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null
 setterm -cursor off > /dev/tty0 2>/dev/null
 clear > /dev/tty0
 # Run the app
-APP_DIR="$(dirname "$(realpath "$0")")"
+SCRIPT_DIR="$(dirname "$(realpath "$0")")"
+APP_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$APP_DIR"
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$APP_DIR"/libtuxdriver/unix
 ./micropython main.py

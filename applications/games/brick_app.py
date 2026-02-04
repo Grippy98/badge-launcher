@@ -1,5 +1,13 @@
+"""Brick Breaker game for the Badge Launcher.
+
+Classic breakout-style game where you control a paddle to bounce a ball
+and destroy bricks. Use left/right arrows to move, ENTER to launch.
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import random
 import time
 
@@ -31,18 +39,14 @@ class BrickApp(app.App):
             input.driver.group.remove_all_objs()
             input.driver.group.add_obj(self.screen)
             lv.group_focus_obj(self.screen)
-            # input.driver.group.set_editing(True) # Replaced with polling
-            
-        # self.screen.add_event_cb(self.on_key, lv.EVENT.KEY, None) # Removed
-        
+
         self.screen.set_style_pad_all(0, 0)
         self.screen.set_style_border_width(0, 0)
         
         disp = lv.display_get_default()
         self.width = disp.get_horizontal_resolution()
         self.height = disp.get_vertical_resolution()
-        # print(f"Brick Game Res: {self.width}x{self.height}")
-        
+
         self.cols_count = self.width // self.CELL_SIZE
         self.rows_count = self.height // self.CELL_SIZE
         
@@ -66,9 +70,20 @@ class BrickApp(app.App):
         self.game_over_label.center()
         self.game_over_label.add_flag(lv.obj.FLAG.HIDDEN)
         self.game_over_label.move_foreground()
-        
+
+        # Keyboard event support for SDL mode
+        self.current_key = 0
+        self.key_state = lv.INDEV_STATE.RELEASED
+        self.screen.add_event_cb(self.on_key_event, lv.EVENT.KEY, None)
+
+        # Add to input group for keyboard focus
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.add_obj(self.screen)
+            lv.group_focus_obj(self.screen)
+
         self.reset_game()
-        
+
         self.last_tick = time.ticks_ms()
         self.timer = lv.timer_create(self.game_loop, 50, None)
 
@@ -121,14 +136,27 @@ class BrickApp(app.App):
         
         self.render()
 
+    def on_key_event(self, e):
+        """Handle LVGL keyboard events (for SDL mode)."""
+        key = e.get_key()
+        self.current_key = key
+        self.key_state = lv.INDEV_STATE.PRESSED
+
     def poll_input(self):
         import input
-        if not input.driver: return
-        
-        key = input.driver.last_key
-        state = input.driver.state
-        
+
+        # Try SDL/LVGL keyboard first
+        key = self.current_key
+        state = self.key_state
+
+        # Fall back to hardware input driver if no SDL key
+        if state != lv.INDEV_STATE.PRESSED and input.driver:
+            key = input.driver.last_key
+            state = input.driver.state
+
         if state == lv.INDEV_STATE.PRESSED:
+            # Reset key state after processing
+            self.key_state = lv.INDEV_STATE.RELEASED
             if key == lv.KEY.ESC:
                 self.exit()
                 if self.on_exit_cb: self.on_exit_cb()

@@ -19,6 +19,15 @@ trap "rm -rf $BUILD_DIR" EXIT
 
 echo "Using temporary build directory: $BUILD_DIR"
 
+# Build img2bin tool if not present
+if [ ! -f "img2bin" ]; then
+    echo "Building img2bin tool..."
+    gcc -o img2bin tools/img2bin.c -lm -O2
+    echo "✓ img2bin built"
+else
+    echo "✓ img2bin already exists"
+fi
+
 # Create directory structure
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$SERVICE_DIR"
@@ -49,7 +58,7 @@ cp libtuxdriver/99-tuxdroid.rules "$UDEV_DIR/"
 
 echo "Fixing permissions..."
 chmod 755 "$DEBIAN_DIR/postinst"
-chmod +x "$INSTALL_DIR/run.sh"
+chmod +x "$INSTALL_DIR/scripts/run.sh"
 [ -f "$INSTALL_DIR/micropython" ] && chmod +x "$INSTALL_DIR/micropython"
 
 echo "Building package manually (using ar/tar)..."

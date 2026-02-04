@@ -1,7 +1,12 @@
+"""Sound settings application.
+
+Toggle system sound on/off and adjust audio preferences.
+"""
+
 import lvgl as lv
-import app
-
-
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 
 class SoundApp(app.App):
     def __init__(self):

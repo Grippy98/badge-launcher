@@ -1,5 +1,13 @@
+"""Badge Mode application for displaying badge information.
+
+Shows the user's name, info text, and logo. Allows editing badge details
+and cycling through logo options (Random, Beagle, TI).
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import random
 import config
 import time
@@ -9,8 +17,8 @@ class BadgeModeApp(app.App):
         super().__init__("Badge Mode")
         self.screen = None
         self.on_exit_cb = None
-        self.ti_dsc = self.load_logo("/root/badge_launcher/ti_logo.bin")
-        self.beagle_dsc = self.load_logo("/root/badge_launcher/beagle_logo.bin")
+        self.ti_dsc = self.load_logo("assets/ti_logo.bin")
+        self.beagle_dsc = self.load_logo("assets/beagle_logo.bin")
         
         self.editing = False
         self.edit_target = "name" # "name" or "info"

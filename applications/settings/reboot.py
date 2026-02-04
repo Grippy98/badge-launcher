@@ -1,5 +1,12 @@
+"""System reboot application.
+
+Provides a confirmation dialog to reboot the badge system.
+"""
+
 import lvgl as lv
-import app
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import os
 
 class RebootApp(app.App):

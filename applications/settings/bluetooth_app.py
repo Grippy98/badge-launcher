@@ -1,4 +1,12 @@
-import app
+"""Bluetooth configuration application.
+
+Scan for Bluetooth devices, pair with peripherals, and manage
+Bluetooth connections using bluetoothctl.
+"""
+
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import lvgl as lv
 import os
 import time

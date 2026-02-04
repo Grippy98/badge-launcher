@@ -1,3 +1,9 @@
+"""Input driver for keyboard and badge button events.
+
+Handles Linux input events from /dev/input/event* devices, mapping
+scancodes to LVGL keys and ASCII characters.
+"""
+
 import lvgl as lv
 import uselect
 import ustruct
@@ -50,6 +56,12 @@ SCAN_TO_ASCII_SHIFT = {
 }
 
 class InputDriver:
+    """LVGL input driver for Linux input events.
+
+    Polls multiple /dev/input/event* devices, translates scancodes to
+    LVGL keys and ASCII, and manages input focus groups.
+    """
+
     def __init__(self):
         self.poll = uselect.poll()
         self.files = {} # fd -> (file_obj, path)
@@ -84,6 +96,11 @@ class InputDriver:
         self.state = lv.INDEV_STATE.RELEASED
 
     def add_device(self, dev_path):
+        """Register an input device for polling.
+
+        Args:
+            dev_path: Path to input device (e.g., '/dev/input/event0')
+        """
         try:
             f = open(dev_path, "rb")
             self.poll.register(f, uselect.POLLIN)
@@ -100,12 +117,18 @@ class InputDriver:
                         print(f"  -> Grab failed with {res}")
                 except Exception as e:
                     print(f"  -> Grab error: {e}")
-                    
+
+
         except Exception as e:
             print(f"Could not open {dev_path}: {e}")
-            pass
 
     def read_cb(self, indev_drv, data):
+        """LVGL input callback to read and process input events.
+
+        Args:
+            indev_drv: LVGL input device driver
+            data: LVGL input data structure to populate
+        """
         if not self.files:
             return
 
@@ -154,10 +177,9 @@ class InputDriver:
                                 # Still need to report state if we want to support long-press logic elsewhere
                                 # but usually we just ignore it.
                                 pass
-                                
+
                         elif value == 0: # Released
-                            # We release regardless of mapping to be safe?
-                            # Or only if it matches last_key
+                            # Release state regardless of key mapping
                             self.state = lv.INDEV_STATE.RELEASED
                                 
         except Exception as e:
@@ -170,6 +192,11 @@ class InputDriver:
 driver = None
 
 def init():
+    """Initialize the global input driver instance.
+
+    Returns:
+        InputDriver instance
+    """
     global driver
     driver = InputDriver()
     return driver

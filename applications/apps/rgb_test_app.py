@@ -1,4 +1,12 @@
-import app
+"""RGB LED test application.
+
+Tests RGB LED functionality with animated color cycling patterns.
+Displays color values and provides visual feedback.
+"""
+
+import sys
+if "core" not in sys.path: sys.path.append("core")
+from core import app
 import lvgl as lv
 import time
 import math
