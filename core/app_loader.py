@@ -9,7 +9,7 @@ import sys
 from . import app
 
 # Default category display order (case-insensitive)
-DEFAULT_CATEGORY_ORDER = ["apps", "games", "tools", "settings"]
+DEFAULT_CATEGORY_ORDER = ["apps", "demos", "games", "tools", "settings"]
 
 # Settings apps display order
 SETTINGS_ORDER = ["WiFi", "Bluetooth", "Sound", "About", "Reboot", "Shutdown"]

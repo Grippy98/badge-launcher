@@ -30,6 +30,18 @@ class AppStoreApp(app.App):
         self.sort_mode = 0  # 0=alphabetical, 1=stars, 2=recent
         self.sort_modes = ["A-Z", "Stars", "Recent"]
 
+        # Category filtering
+        self.current_view = "menu"  # "menu" or "list"
+        self.selected_category = None  # None = All, or "demo", "tools", "media", "games"
+        self.categories = [
+            {"id": None, "name": "All Apps"},
+            {"id": "demo", "name": "Demos"},
+            {"id": "tools", "name": "Tools"},
+            {"id": "media", "name": "Media"},
+            {"id": "games", "name": "Games"}
+        ]
+        self.category_selected_idx = 0
+
         # UI elements for right panel
         self.desc_panel = None
         self.desc_name = None
@@ -51,10 +63,13 @@ class AppStoreApp(app.App):
         self.menu_selected = 0
         self.menu_visible = False
 
+        # Category menu
+        self.category_container = None
+        self.category_buttons = []
+
         # App store configuration
         self.store_repo = "https://github.com/Grippy98/badge-app-store.git"
         self.store_path = "/tmp/badge-app-store"
-        self.manifest_url = "https://raw.githubusercontent.com/Grippy98/badge-app-store/master/manifest.json"
 
         # Styles
         self.style_btn_rel = lv.style_t()
@@ -105,7 +120,6 @@ class AppStoreApp(app.App):
             pass
 
         self.log(f"Store URL: {self.store_repo}")
-        self.log(f"Manifest URL: {self.manifest_url}")
 
         self.screen = lv.obj()
         self.screen.set_style_bg_color(lv.color_white(), 0)
@@ -281,43 +295,169 @@ class AppStoreApp(app.App):
         lv.refr_now(None)
         lv.async_call(lambda _: self.fetch_manifest(), None)
 
+    def show_category_menu(self):
+        """Show the category selection menu."""
+        self.current_view = "menu"
+
+        # Hide list UI elements
+        self.list_cont.add_flag(lv.obj.FLAG.HIDDEN)
+        self.desc_panel.add_flag(lv.obj.FLAG.HIDDEN)
+        self.divider.add_flag(lv.obj.FLAG.HIDDEN)
+        self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+        self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+        self.sort_label.add_flag(lv.obj.FLAG.HIDDEN)
+
+        # Show category buttons
+        if self.category_container is None:
+            self.category_container = lv.obj(self.screen)
+            self.category_container.set_size(160, 215)
+            self.category_container.set_pos(120, 35)
+            self.category_container.set_flex_flow(lv.FLEX_FLOW.COLUMN)
+            self.category_container.set_style_bg_opa(0, 0)
+            self.category_container.set_style_border_width(0, 0)
+            self.category_container.set_style_pad_all(5, 0)
+            self.category_container.set_style_pad_gap(5, 0)
+            self.category_container.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+
+            self.category_buttons = []
+            for i, cat in enumerate(self.categories):
+                btn = lv.button(self.category_container)
+                btn.set_size(140, 36)
+                btn.add_style(self.style_btn_rel, 0)
+
+                if i == self.category_selected_idx:
+                    btn.add_style(self.style_btn_foc, 0)
+
+                lbl = lv.label(btn)
+                lbl.set_text(cat["name"])
+                lbl.center()
+
+                self.category_buttons.append(btn)
+        else:
+            self.category_container.remove_flag(lv.obj.FLAG.HIDDEN)
+            # Update selection highlight
+            for i, btn in enumerate(self.category_buttons):
+                try:
+                    btn.remove_style(self.style_btn_foc, 0)
+                except:
+                    pass
+                if i == self.category_selected_idx:
+                    btn.add_style(self.style_btn_foc, 0)
+
+        # Update instructions
+        self.info_label.set_text("UP/DN: Select | ENTER: View | ESC: Exit")
+        self.info_label.remove_flag(lv.obj.FLAG.HIDDEN)
+        lv.refr_now(None)
+
+    def get_filtered_apps(self):
+        """Get apps filtered by current category."""
+        if self.selected_category is None:
+            return self.apps  # All apps
+        return [app for app in self.apps if app.get("category") == self.selected_category]
+
+    def show_app_list(self):
+        """Show the app list for the selected category."""
+        self.current_view = "list"
+
+        # Hide category menu
+        if self.category_container is not None:
+            self.category_container.add_flag(lv.obj.FLAG.HIDDEN)
+
+        # Show list UI elements
+        self.list_cont.remove_flag(lv.obj.FLAG.HIDDEN)
+        self.desc_panel.remove_flag(lv.obj.FLAG.HIDDEN)
+        self.divider.remove_flag(lv.obj.FLAG.HIDDEN)
+        self.sort_label.remove_flag(lv.obj.FLAG.HIDDEN)
+
+        # Reset selection
+        self.selected_idx = 0
+        self.visible_start = 0
+
+        # Update instructions
+        self.info_label.set_text("UP/DN: Select | L/R: Sort | ENTER: Menu | ESC: Back")
+
+        # Check if category has apps
+        filtered_apps = self.get_filtered_apps()
+        if not filtered_apps:
+            # Clear description panel if no apps
+            self.desc_name.set_text("")
+            self.desc_version.set_text("")
+            self.desc_author.set_text("")
+            self.desc_text.set_text("No apps in this category")
+            self.desc_status.set_text("")
+
+        # Render list
+        self.render_list()
+        if filtered_apps:
+            self.update_description()
+        lv.refr_now(None)
+
     def fetch_manifest(self):
-        """Fetch the app manifest from the store."""
+        """Fetch the app list by reading metadata from store repository."""
         if self.loading:
             self.log("Already loading, skipping")
             return
         self.loading = True
 
-        self.log(f"Fetching manifest from: {self.manifest_url}")
+        self.log(f"Fetching app store from: {self.store_repo}")
 
-        # Try to fetch manifest
-        success, output = self.run_command(f"curl -sL {self.manifest_url}")
+        # Ensure store repo is cloned/updated
+        try:
+            os.stat(self.store_path)
+            # Update existing
+            self.status_label.set_text("Updating app store...")
+            lv.refr_now(None)
+            self.log("Updating existing store repo")
+            success, output = self.run_command(f"cd {self.store_path} && git pull")
+            if not success:
+                self.log(f"Git pull failed: {output}")
+                self.status_label.set_text("Failed to update store.\nUsing cached version.")
+                # Continue with cached version
+        except:
+            # Clone fresh
+            self.status_label.set_text("Downloading app store...")
+            lv.refr_now(None)
+            self.log("Cloning fresh store repo")
+            success, output = self.run_command(f"git clone {self.store_repo} {self.store_path}")
+            if not success:
+                self.log(f"Git clone failed: {output}")
+                self.status_label.set_text("Failed to download store.\nCheck network connection.")
+                self.loading = False
+                return
 
-        self.log(f"Fetch success: {success}")
-        self.log(f"Output length: {len(output) if output else 0}")
-
-        if not success:
-            self.log("Command failed")
-            self.status_label.set_text(f"Failed to fetch app list.\nCheck network connection.")
-            self.loading = False
-            return
-
-        if not output or not output.strip():
-            self.log("Empty output")
-            self.status_label.set_text("Empty response from server.")
-            self.loading = False
-            return
-
-        if not output.strip().startswith("{"):
-            self.log(f"Invalid JSON start")
-            self.status_label.set_text(f"Invalid response (not JSON).")
-            self.loading = False
-            return
+        # Read metadata from each app folder
+        self.status_label.set_text("Loading apps...")
+        lv.refr_now(None)
 
         try:
-            self.log("Parsing JSON...")
-            manifest = json.loads(output)
-            self.apps = manifest.get("apps", [])
+            self.log("Reading app metadata from folders")
+            self.apps = []
+            apps_dir = f"{self.store_path}/apps"
+
+            # Check if apps directory exists
+            try:
+                os.stat(apps_dir)
+            except:
+                self.log(f"Apps directory not found: {apps_dir}")
+                self.status_label.set_text("No apps directory in store.")
+                self.loading = False
+                return
+
+            # Iterate through each subdirectory in apps/
+            for entry in os.listdir(apps_dir):
+                app_path = f"{apps_dir}/{entry}"
+                metadata_path = f"{app_path}/metadata.json"
+
+                # Check if this is a directory with metadata.json
+                try:
+                    with open(metadata_path, 'r') as f:
+                        metadata = json.load(f)
+                        self.apps.append(metadata)
+                        self.log(f"Loaded app: {metadata.get('name', entry)}")
+                except Exception as e:
+                    self.log(f"Skipping {entry}: {e}")
+                    continue
+
             self.log(f"Found {len(self.apps)} apps")
 
             if not self.apps:
@@ -325,20 +465,15 @@ class AppStoreApp(app.App):
                 self.loading = False
                 return
 
-            # Hide status, show UI
-            self.log("Showing app list UI")
+            # Hide status, show category menu
+            self.log("Showing category menu")
             self.status_label.add_flag(lv.obj.FLAG.HIDDEN)
-            self.list_cont.remove_flag(lv.obj.FLAG.HIDDEN)
-            self.desc_panel.remove_flag(lv.obj.FLAG.HIDDEN)
-            self.divider.remove_flag(lv.obj.FLAG.HIDDEN)
-            self.info_label.remove_flag(lv.obj.FLAG.HIDDEN)
 
-            # Sort apps
+            # Sort apps initially
             self.sort_apps()
 
-            # Populate list
-            self.render_list()
-            self.update_description()
+            # Show category selection menu
+            self.show_category_menu()
             self.loading = False
 
         except Exception as e:
@@ -358,8 +493,11 @@ class AppStoreApp(app.App):
                 pass  # Already deleted
         self.buttons = []
 
+        # Get filtered apps for current category
+        filtered_apps = self.get_filtered_apps()
+
         # Calculate visible range
-        end_idx = min(self.visible_start + self.visible_count, len(self.apps))
+        end_idx = min(self.visible_start + self.visible_count, len(filtered_apps))
 
         # Show/hide arrows
         if self.visible_start > 0:
@@ -367,14 +505,14 @@ class AppStoreApp(app.App):
         else:
             self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
 
-        if end_idx < len(self.apps):
+        if end_idx < len(filtered_apps):
             self.down_arrow.remove_flag(lv.obj.FLAG.HIDDEN)
         else:
             self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
 
         # Create buttons for visible items
         for i in range(self.visible_start, end_idx):
-            app_info = self.apps[i]
+            app_info = filtered_apps[i]
             name = app_info.get("name", "Unknown")
 
             # Check if installed
@@ -402,10 +540,11 @@ class AppStoreApp(app.App):
 
     def update_description(self):
         """Update the right panel with selected app info."""
-        if not self.apps or self.selected_idx >= len(self.apps):
+        filtered_apps = self.get_filtered_apps()
+        if not filtered_apps or self.selected_idx >= len(filtered_apps):
             return
 
-        app_info = self.apps[self.selected_idx]
+        app_info = filtered_apps[self.selected_idx]
 
         name = app_info.get("name", "Unknown")
         available_version = app_info.get("version", "?.?")
@@ -884,7 +1023,41 @@ class AppStoreApp(app.App):
 
         key = e.get_key()
 
-        # Handle menu navigation
+        # Handle category menu navigation
+        if self.current_view == "menu":
+            if key == lv.KEY.ESC:
+                self.exit()
+                if self.on_exit:
+                    self.on_exit()
+            elif key == lv.KEY.UP:
+                self.category_selected_idx = (self.category_selected_idx - 1) % len(self.categories)
+                # Update button styles
+                for i, btn in enumerate(self.category_buttons):
+                    try:
+                        btn.remove_style(self.style_btn_foc, 0)
+                    except:
+                        pass
+                    if i == self.category_selected_idx:
+                        btn.add_style(self.style_btn_foc, 0)
+                lv.refr_now(None)
+            elif key == lv.KEY.DOWN:
+                self.category_selected_idx = (self.category_selected_idx + 1) % len(self.categories)
+                # Update button styles
+                for i, btn in enumerate(self.category_buttons):
+                    try:
+                        btn.remove_style(self.style_btn_foc, 0)
+                    except:
+                        pass
+                    if i == self.category_selected_idx:
+                        btn.add_style(self.style_btn_foc, 0)
+                lv.refr_now(None)
+            elif key == lv.KEY.ENTER:
+                # Select category and show app list
+                self.selected_category = self.categories[self.category_selected_idx]["id"]
+                self.show_app_list()
+            return
+
+        # Handle app menu navigation (overlay menu when viewing app details)
         if self.menu_visible:
             if key == lv.KEY.ESC:
                 self.hide_app_menu()
@@ -921,15 +1094,15 @@ class AppStoreApp(app.App):
                     lv.async_call(lambda _: action(), None)
             return
 
-        # Handle main UI navigation
+        # Handle app list navigation
         if key == lv.KEY.ESC:
-            self.exit()
-            if self.on_exit:
-                self.on_exit()
+            # Go back to category menu
+            self.show_category_menu()
 
         elif key == lv.KEY.UP:
-            if self.apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
-                self.selected_idx = (self.selected_idx - 1) % len(self.apps)
+            filtered_apps = self.get_filtered_apps()
+            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
+                self.selected_idx = (self.selected_idx - 1) % len(filtered_apps)
 
                 # Scroll window if needed
                 if self.selected_idx < self.visible_start:
@@ -941,8 +1114,9 @@ class AppStoreApp(app.App):
                 self.update_description()
 
         elif key == lv.KEY.DOWN:
-            if self.apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
-                self.selected_idx = (self.selected_idx + 1) % len(self.apps)
+            filtered_apps = self.get_filtered_apps()
+            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
+                self.selected_idx = (self.selected_idx + 1) % len(filtered_apps)
 
                 # Scroll window if needed
                 if self.selected_idx < self.visible_start:
@@ -954,12 +1128,14 @@ class AppStoreApp(app.App):
                 self.update_description()
 
         elif key == lv.KEY.ENTER:
-            if self.apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
-                selected_app = self.apps[self.selected_idx]
+            filtered_apps = self.get_filtered_apps()
+            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
+                selected_app = filtered_apps[self.selected_idx]
                 self.show_app_menu(selected_app)
 
         elif key == lv.KEY.LEFT or key == lv.KEY.RIGHT:
-            if self.apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
+            filtered_apps = self.get_filtered_apps()
+            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
                 # Cycle sort mode
                 if key == lv.KEY.RIGHT:
                     self.sort_mode = (self.sort_mode + 1) % len(self.sort_modes)
@@ -1004,6 +1180,9 @@ class AppStoreApp(app.App):
         self.menu_container = None
         self.menu_buttons = []
         self.menu_actions = []
+        self.category_container = None
+        self.category_buttons = []
         self.loading = False
         self.menu_visible = False
-        # Keep star_counts and sort_mode cached across sessions
+        self.current_view = "menu"
+        # Keep star_counts, sort_mode, and category selection cached across sessions

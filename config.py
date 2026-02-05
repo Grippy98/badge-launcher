@@ -17,6 +17,7 @@ sound_enabled = True
 badge_name = "Beagle\nBadge"
 badge_info = "Linux (CES Port)\nBuild - Python"
 badge_logo = 0 # 0: Random, 1: Beagle, 2: TI
+badge_qr_link = "https://beagleboard.org"
 version = "1.0.0"  # Default fallback
 
 def load_version():
@@ -38,7 +39,7 @@ def load():
     Also loads version from VERSION file.
     Silently fails if file doesn't exist (uses defaults).
     """
-    global sound_enabled, badge_name, badge_info, badge_logo, version
+    global sound_enabled, badge_name, badge_info, badge_logo, badge_qr_link, version
     try:
         # Simple existence check by opening for read
         with open(CONFIG_FILE, 'r') as f:
@@ -47,6 +48,7 @@ def load():
             badge_name = data.get("badge_name", "Beagle\nBadge")
             badge_info = data.get("badge_info", "Linux (CES Port)\nBuild - Python")
             badge_logo = data.get("badge_logo", 0)
+            badge_qr_link = data.get("badge_qr_link", "https://beagleboard.org")
     except:
         # File likely missing
         pass
@@ -66,7 +68,8 @@ def save():
                 "sound_enabled": sound_enabled,
                 "badge_name": badge_name,
                 "badge_info": badge_info,
-                "badge_logo": badge_logo
+                "badge_logo": badge_logo,
+                "badge_qr_link": badge_qr_link
             }
             json.dump(data, f)
             # Ensure it's written to disk
