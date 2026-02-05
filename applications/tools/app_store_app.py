@@ -63,6 +63,10 @@ class AppStoreApp(app.App):
         self.menu_selected = 0
         self.menu_visible = False
 
+        # QR code overlay
+        self.qr_overlay = None
+        self.qr_bg_overlay = None
+
         # Category menu
         self.category_container = None
         self.category_buttons = []
@@ -583,29 +587,57 @@ class AppStoreApp(app.App):
 
         self.log(f"Updated description for: {name}")
 
+    def get_category_dir(self, category):
+        """Map category ID to installation directory name."""
+        # Map category IDs to their corresponding directory names
+        category_map = {
+            "demo": "demos",
+            "tools": "tools",
+            "media": "apps",  # Media apps go to apps/
+            "games": "games",
+            "apps": "apps"
+        }
+        return category_map.get(category, "apps")
+
+    def find_installed_app(self, app_id):
+        """Find where an app is installed, if anywhere.
+
+        Returns:
+            Tuple of (category_dir, app_path) if found, else (None, None)
+        """
+        # Check all possible category directories
+        for category_dir in ["apps", "demos", "games", "tools"]:
+            # Check for directory-based installation
+            dir_path = f"applications/{category_dir}/{app_id}"
+            try:
+                os.stat(dir_path)
+                return (category_dir, dir_path)
+            except:
+                pass
+
+            # Check for file-based installation (old-style apps)
+            file_path = f"applications/{category_dir}/{app_id}_app.py"
+            try:
+                os.stat(file_path)
+                return (category_dir, file_path)
+            except:
+                pass
+
+        return (None, None)
+
     def is_installed(self, app_id):
         """Check if an app is already installed (directory or file-based)."""
-        # Check for directory-based installation (store apps)
-        dir_path = f"applications/apps/{app_id}"
-        try:
-            os.stat(dir_path)
-            return True
-        except:
-            pass
-
-        # Check for file-based installation (old-style apps)
-        file_path = f"applications/apps/{app_id}_app.py"
-        try:
-            os.stat(file_path)
-            return True
-        except:
-            pass
-
-        return False
+        category_dir, app_path = self.find_installed_app(app_id)
+        return app_path is not None
 
     def get_installed_version(self, app_id):
         """Get the version of an installed app from its metadata."""
-        metadata_path = f"applications/apps/{app_id}/metadata.json"
+        category_dir, app_path = self.find_installed_app(app_id)
+        if not app_path:
+            return "unknown"
+
+        # Try to read metadata.json from the app directory
+        metadata_path = f"{app_path}/metadata.json"
         try:
             with open(metadata_path, 'r') as f:
                 metadata = json.load(f)
@@ -720,6 +752,28 @@ class AppStoreApp(app.App):
         app_name = app_info.get("name")
         is_installed = self.is_installed(app_id)
 
+        # Build actions list first to calculate menu height
+        self.menu_actions = []
+        if is_installed:
+            self.menu_actions.append(("Launch", lambda: self.launch_app(app_info)))
+            self.menu_actions.append(("Update", lambda: self.install_app(app_info)))
+            self.menu_actions.append(("Delete", lambda: self.delete_app(app_info)))
+        else:
+            self.menu_actions.append(("Install", lambda: self.install_app(app_info)))
+
+        # Add Project Page action (shows QR code)
+        self.menu_actions.append(("Project Page", lambda: self.show_project_qr(app_info)))
+        self.menu_actions.append(("Cancel", lambda: self.hide_app_menu()))
+
+        # Calculate menu height dynamically based on number of items
+        # Title: ~25px, Button: 35px each, Gap: 5px between buttons, Padding: 20px total
+        num_items = len(self.menu_actions)
+        title_height = 25
+        button_height = 35
+        gap_height = 5
+        padding = 20
+        menu_height = title_height + (num_items * button_height) + ((num_items - 1) * gap_height) + padding
+
         # Create semi-transparent overlay
         self.menu_overlay = lv.obj(self.screen)
         self.menu_overlay.set_size(400, 280)
@@ -728,9 +782,9 @@ class AppStoreApp(app.App):
         self.menu_overlay.set_style_bg_opa(128, 0)  # 50% transparent
         self.menu_overlay.set_style_border_width(0, 0)
 
-        # Create menu container
+        # Create menu container with dynamic height
         self.menu_container = lv.obj(self.screen)
-        self.menu_container.set_size(240, 200)
+        self.menu_container.set_size(240, menu_height)
         self.menu_container.set_style_bg_color(lv.color_white(), 0)
         self.menu_container.set_style_border_color(lv.color_black(), 0)
         self.menu_container.set_style_border_width(2, 0)
@@ -752,17 +806,6 @@ class AppStoreApp(app.App):
             title.set_long_mode(lv.LABEL_LONG.WRAP)
         except:
             pass
-
-        # Build actions list
-        self.menu_actions = []
-        if is_installed:
-            self.menu_actions.append(("Launch", lambda: self.launch_app(app_info)))
-            self.menu_actions.append(("Update", lambda: self.install_app(app_info)))
-            self.menu_actions.append(("Delete", lambda: self.delete_app(app_info)))
-        else:
-            self.menu_actions.append(("Install", lambda: self.install_app(app_info)))
-
-        self.menu_actions.append(("Cancel", lambda: self.hide_app_menu()))
 
         # Create menu buttons
         self.menu_buttons = []
@@ -798,6 +841,125 @@ class AppStoreApp(app.App):
         self.menu_visible = False
         lv.refr_now(None)
 
+    def show_project_qr(self, app_info):
+        """Show QR code for the app's project page."""
+        repo_url = app_info.get("repo", "")
+        app_name = app_info.get("name", "App")
+
+        if not repo_url:
+            self.hide_app_menu()
+            self.show_error("No repository URL")
+            return
+
+        # Hide the app menu first
+        self.hide_app_menu()
+
+        # Display QR code overlay using LVGL's built-in QR code widget
+        self.show_qr_overlay(repo_url, app_name)
+
+    def show_qr_overlay(self, url, app_name):
+        """Display QR code in an overlay with instructions."""
+        # Create semi-transparent background overlay
+        bg_overlay = lv.obj(self.screen)
+        bg_overlay.set_size(400, 280)
+        bg_overlay.set_pos(0, 0)
+        bg_overlay.set_style_bg_color(lv.color_black(), 0)
+        bg_overlay.set_style_bg_opa(128, 0)  # 50% transparent
+        bg_overlay.set_style_border_width(0, 0)
+
+        # Create QR code container (centered, smaller overlay)
+        qr_overlay = lv.obj(self.screen)
+        qr_overlay.set_size(240, 260)
+        qr_overlay.set_style_bg_color(lv.color_white(), 0)
+        qr_overlay.set_style_bg_opa(255, 0)
+        qr_overlay.set_style_border_color(lv.color_black(), 0)
+        qr_overlay.set_style_border_width(2, 0)
+        qr_overlay.set_style_pad_all(10, 0)
+        qr_overlay.center()
+
+        # Title
+        title = lv.label(qr_overlay)
+        title.set_text(f"{app_name}")
+        title.set_style_text_color(lv.color_black(), 0)
+        try:
+            title.set_style_text_font(lv.font_montserrat_14, 0)
+        except:
+            pass
+        title.align(lv.ALIGN.TOP_MID, 0, 5)
+
+        # QR code container
+        qr_container = lv.obj(qr_overlay)
+        qr_container.set_size(180, 180)
+        qr_container.set_style_bg_color(lv.color_white(), 0)
+        qr_container.set_style_border_width(1, 0)
+        qr_container.set_style_border_color(lv.color_black(), 0)
+        qr_container.set_style_pad_all(5, 0)
+        qr_container.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+        qr_container.align(lv.ALIGN.CENTER, 0, 0)
+
+        # Generate QR code using LVGL's built-in QR code widget
+        try:
+            qr_code = lv.qrcode(qr_container)
+            qr_code.set_size(170)  # Slightly smaller to fit with padding
+            qr_code.set_dark_color(lv.color_black())
+            qr_code.set_light_color(lv.color_white())
+            qr_code.align(lv.ALIGN.CENTER, 0, 0)
+            qr_code.update(url, len(url))
+        except Exception as e:
+            self.log(f"QR code generation failed: {e}")
+            # Show error instead
+            error_label = lv.label(qr_container)
+            error_label.set_text(f"QR code\nerror")
+            error_label.set_style_text_color(lv.color_black(), 0)
+            error_label.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+            error_label.align(lv.ALIGN.CENTER, 0, 0)
+
+        # Instructions at bottom
+        instructions = lv.label(qr_overlay)
+        instructions.set_text("Press ESC to close")
+        instructions.set_style_text_color(lv.color_black(), 0)
+        instructions.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+        try:
+            instructions.set_style_text_font(lv.font_montserrat_10, 0)
+        except:
+            pass
+        instructions.align(lv.ALIGN.BOTTOM_MID, 0, -5)
+
+        # Store references to overlays for cleanup
+        self.qr_overlay = qr_overlay
+        self.qr_bg_overlay = bg_overlay
+
+        # Add keyboard handler for dismissing
+        def on_qr_key(e):
+            key = e.get_key()
+            if key == lv.KEY.ESC or key == lv.KEY.ENTER:
+                if hasattr(self, 'qr_bg_overlay') and self.qr_bg_overlay:
+                    self.qr_bg_overlay.delete()
+                    self.qr_bg_overlay = None
+                if hasattr(self, 'qr_overlay') and self.qr_overlay:
+                    self.qr_overlay.delete()
+                    self.qr_overlay = None
+
+                # Restore input focus to the screen
+                import input
+                if input.driver and input.driver.group:
+                    input.driver.group.remove_all_objs()
+                    input.driver.group.add_obj(self.screen)
+                    lv.group_focus_obj(self.screen)
+
+                lv.refr_now(None)
+
+        qr_overlay.add_event_cb(on_qr_key, lv.EVENT.KEY, None)
+
+        # Make overlay focusable to receive keyboard events
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.remove_all_objs()
+            input.driver.group.add_obj(qr_overlay)
+            lv.group_focus_obj(qr_overlay)
+
+        lv.refr_now(None)
+
     def launch_app(self, app_info):
         """Launch an installed app."""
         app_id = app_info.get("id")
@@ -808,12 +970,18 @@ class AppStoreApp(app.App):
             self.show_error("App not installed")
             return
 
+        # Find where the app is installed
+        category_dir, app_path = self.find_installed_app(app_id)
+        if not app_path:
+            self.hide_app_menu()
+            self.show_error("App not found")
+            return
+
         # Hide menu
         self.hide_app_menu()
 
         # Try to load and launch the app
         try:
-            app_path = f"applications/apps/{app_id}"
             if app_path not in sys.path:
                 sys.path.append(app_path)
 
@@ -921,11 +1089,32 @@ class AppStoreApp(app.App):
         self.status_label.set_text(f"Installing {app_name}...")
         lv.refr_now(None)
 
-        src = f"{self.store_path}/{submodule_path}"
-        dest = f"applications/apps/{app_id}"
+        # Determine target directory based on category
+        category = app_info.get("category", "apps")
+        category_dir = self.get_category_dir(category)
 
-        # Remove old version if exists
-        self.run_command(f"rm -rf {dest}")
+        # Ensure category directory exists
+        category_path = f"applications/{category_dir}"
+        try:
+            os.stat(category_path)
+        except:
+            # Create directory if it doesn't exist
+            try:
+                os.mkdir(category_path)
+                self.log(f"Created category directory: {category_path}")
+            except Exception as e:
+                self.log(f"Failed to create category directory: {e}")
+                self.show_error(f"Failed to create category dir")
+                return
+
+        src = f"{self.store_path}/{submodule_path}"
+        dest = f"{category_path}/{app_id}"
+
+        # Remove old version if exists (check all categories)
+        old_category_dir, old_app_path = self.find_installed_app(app_id)
+        if old_app_path:
+            self.run_command(f"rm -rf {old_app_path}")
+            self.log(f"Removed old version at {old_app_path}")
 
         # Copy new version
         success, output = self.run_command(f"cp -r {src} {dest}")
@@ -977,27 +1166,22 @@ class AppStoreApp(app.App):
         self.status_label.set_text(f"Deleting {app_name}...")
         lv.refr_now(None)
 
-        # Delete app (handle both directory and file-based apps)
-        dest_dir = f"applications/apps/{app_id}"
-        dest_file = f"applications/apps/{app_id}_app.py"
+        # Find and delete app from wherever it's installed
+        category_dir, app_path = self.find_installed_app(app_id)
 
-        # Try directory first (store-installed apps)
-        success, output = self.run_command(f"rm -rf {dest_dir}")
+        if not app_path:
+            self.show_error("App not found")
+            return
 
-        # Also try file-based (old-style apps)
-        try:
-            os.stat(dest_file)
-            success2, output2 = self.run_command(f"rm -f {dest_file}")
-            success = success and success2
-        except:
-            pass  # File doesn't exist
+        # Delete the app
+        success, output = self.run_command(f"rm -rf {app_path}")
 
         if not success:
             self.show_error(f"Failed to delete")
             self.log(f"Delete failed: {output}")
             return
 
-        self.log(f"Deleted {dest_dir} and/or {dest_file}")
+        self.log(f"Deleted {app_path}")
 
         # Success!
         self.status_label.set_text(f"SUCCESS: {app_name} deleted!\n\nReturn to menu\nto see changes.")
@@ -1156,6 +1340,20 @@ class AppStoreApp(app.App):
         # Clean up menu if visible
         if self.menu_visible:
             self.hide_app_menu()
+
+        # Clean up QR overlay if visible
+        if self.qr_bg_overlay:
+            try:
+                self.qr_bg_overlay.delete()
+            except:
+                pass
+            self.qr_bg_overlay = None
+        if self.qr_overlay:
+            try:
+                self.qr_overlay.delete()
+            except:
+                pass
+            self.qr_overlay = None
 
         if self.screen:
             self.screen.delete()

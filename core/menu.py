@@ -59,14 +59,31 @@ class MenuApp:
         self.badge_mode = None
         self._load_badge_mode_app()
 
-        # Build category list
+        # Initialize cache for loaded apps
+        self.cached_apps = {}  # Cache loaded apps {category: [apps]}
+
+        # Build category list - only include categories with apps
         raw_cats = [c[0].upper() + c[1:] for c in app_loader.load_categories()]
 
-        # Filter and order: Badge Mode first, Settings last
-        main_cats = [c for c in raw_cats if c.lower() != "settings"]
-        has_settings = any(c.lower() == "settings" for c in raw_cats)
+        # Filter out empty categories by checking if they have apps
+        non_empty_cats = []
+        has_settings = False
+        for cat in raw_cats:
+            cat_lower = cat.lower()
+            # Load apps for this category to check if it's empty
+            apps = app_loader.load_apps_from_category(cat_lower)
+            if apps:  # Only include if it has at least one app
+                if cat_lower == "settings":
+                    has_settings = True
+                else:
+                    non_empty_cats.append(cat)
+                # Cache the loaded apps
+                self.cached_apps[cat_lower] = apps
 
-        self.categories = ["Badge Mode"] + sorted(main_cats)
+        # Filter and order: Badge Mode first, Settings last
+        main_cats = sorted(non_empty_cats)
+
+        self.categories = ["Badge Mode"] + main_cats
         if has_settings:
             self.categories.append("Settings")
 
@@ -74,7 +91,6 @@ class MenuApp:
         self.state = "ROOT"  # ROOT or SUBMENU
         self.selected_category_idx = 0
         self.current_list = []
-        self.cached_apps = {}  # Cache loaded apps {category: [apps]}
 
     def _load_logo_asset(self, path):
         """Load a logo asset from binary file.
@@ -149,6 +165,31 @@ class MenuApp:
 
         # Clear app cache to rescan for newly installed apps
         self.cached_apps = {}
+
+        # Rebuild category list to reflect any new/removed apps
+        raw_cats = [c[0].upper() + c[1:] for c in app_loader.load_categories()]
+
+        # Filter out empty categories by checking if they have apps
+        non_empty_cats = []
+        has_settings = False
+        for cat in raw_cats:
+            cat_lower = cat.lower()
+            # Load apps for this category to check if it's empty
+            apps = app_loader.load_apps_from_category(cat_lower)
+            if apps:  # Only include if it has at least one app
+                if cat_lower == "settings":
+                    has_settings = True
+                else:
+                    non_empty_cats.append(cat)
+                # Cache the loaded apps
+                self.cached_apps[cat_lower] = apps
+
+        # Filter and order: Badge Mode first, Settings last
+        main_cats = sorted(non_empty_cats)
+
+        self.categories = ["Badge Mode"] + main_cats
+        if has_settings:
+            self.categories.append("Settings")
 
         if not self.screen:
             self.screen = lv.obj()
@@ -357,6 +398,32 @@ class MenuApp:
                 self.down_arrow.remove_flag(lv.obj.FLAG.HIDDEN)
             else:
                 self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+            lv.refr_now(None)
+        else:
+            # No items in this category - show message and allow navigation back
+            self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+            self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+
+            # Create empty state message
+            empty_label = lv.label(self.menu_list_cont)
+            empty_label.set_text("No apps in this category.\nPress ESC to go back.")
+            empty_label.set_style_text_color(lv.color_black(), 0)
+            try:
+                empty_label.set_style_text_font(lv.font_montserrat_14, 0)
+            except:
+                pass
+            empty_label.set_width(lv.pct(90))
+            empty_label.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+            empty_label.align(lv.ALIGN.CENTER, 0, 0)
+
+            # Make the screen itself receive keyboard events for navigation
+            self.screen.add_event_cb(self.on_key, lv.EVENT.KEY, None)
+            if input.driver and input.driver.group:
+                # Add screen to group so it can receive ESC key
+                self.screen.add_flag(lv.obj.FLAG.CLICKABLE)
+                input.driver.group.add_obj(self.screen)
+                lv.group_focus_obj(self.screen)
+
             lv.refr_now(None)
 
     def on_focus(self, e):

@@ -133,6 +133,10 @@ def load_apps_from_category(category_name):
                 continue
 
             if is_dir:
+                # Skip directories starting with underscore (templates, etc.)
+                if entry.startswith("_"):
+                    continue
+
                 # Folder-based app: look for {folder_name}_app.py or app.py
                 app_dir_path = entry_path
 
