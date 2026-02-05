@@ -311,6 +311,9 @@ class AppStoreApp(app.App):
         self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
         self.sort_label.add_flag(lv.obj.FLAG.HIDDEN)
 
+        # Clear any cached installed status checks by re-rendering when we come back
+        # (This ensures fresh filesystem checks when returning from install/delete)
+
         # Show category buttons
         if self.category_container is None:
             self.category_container = lv.obj(self.screen)
@@ -390,7 +393,7 @@ class AppStoreApp(app.App):
             self.desc_text.set_text("No apps in this category")
             self.desc_status.set_text("")
 
-        # Render list
+        # Force a fresh render to update installed status
         self.render_list()
         if filtered_apps:
             self.update_description()
@@ -1130,10 +1133,10 @@ class AppStoreApp(app.App):
 
         # Success!
         action_past = "updated" if is_update else "installed"
-        self.status_label.set_text(f"SUCCESS: {app_name} {action_past}!\n\nReturn to menu\nto see changes.")
+        self.status_label.set_text(f"SUCCESS: {app_name} {action_past}!")
         time.sleep(2)
 
-        # Return to list
+        # Return to list with fresh status
         self.status_label.add_flag(lv.obj.FLAG.HIDDEN)
         self.list_cont.remove_flag(lv.obj.FLAG.HIDDEN)
         self.desc_panel.remove_flag(lv.obj.FLAG.HIDDEN)
@@ -1141,6 +1144,7 @@ class AppStoreApp(app.App):
         self.info_label.remove_flag(lv.obj.FLAG.HIDDEN)
         self.render_list()
         self.update_description()
+        lv.refr_now(None)
 
     def delete_app(self, app_info):
         """Delete the selected app."""
@@ -1184,10 +1188,10 @@ class AppStoreApp(app.App):
         self.log(f"Deleted {app_path}")
 
         # Success!
-        self.status_label.set_text(f"SUCCESS: {app_name} deleted!\n\nReturn to menu\nto see changes.")
+        self.status_label.set_text(f"SUCCESS: {app_name} deleted!")
         time.sleep(2)
 
-        # Return to list
+        # Return to list with fresh status
         self.status_label.add_flag(lv.obj.FLAG.HIDDEN)
         self.list_cont.remove_flag(lv.obj.FLAG.HIDDEN)
         self.desc_panel.remove_flag(lv.obj.FLAG.HIDDEN)
@@ -1195,6 +1199,7 @@ class AppStoreApp(app.App):
         self.info_label.remove_flag(lv.obj.FLAG.HIDDEN)
         self.render_list()
         self.update_description()
+        lv.refr_now(None)
 
     def show_error(self, message):
         """Show error message."""
