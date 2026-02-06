@@ -74,7 +74,10 @@ def save():
             json.dump(data, f)
             # Ensure it's written to disk
             f.flush()
+        try:
             os.sync()
+        except AttributeError:
+            pass
     except Exception as e:
         print(f"Error saving config: {e}")
 

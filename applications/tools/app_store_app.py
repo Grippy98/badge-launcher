@@ -288,7 +288,9 @@ class AppStoreApp(app.App):
         # Setup input
         import input
         if input.driver and input.driver.group:
+            input.driver.group.set_editing(True)
             input.driver.group.remove_all_objs()
+            self.screen.add_flag(lv.obj.FLAG.CLICKABLE)
             input.driver.group.add_obj(self.screen)
             lv.group_focus_obj(self.screen)
 
@@ -303,6 +305,12 @@ class AppStoreApp(app.App):
         """Show the category selection menu."""
         self.current_view = "menu"
 
+        # Clear input group and add screen for ESC
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.remove_all_objs()
+            # We'll add buttons to group below
+
         # Hide list UI elements
         self.list_cont.add_flag(lv.obj.FLAG.HIDDEN)
         self.desc_panel.add_flag(lv.obj.FLAG.HIDDEN)
@@ -310,9 +318,6 @@ class AppStoreApp(app.App):
         self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
         self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
         self.sort_label.add_flag(lv.obj.FLAG.HIDDEN)
-
-        # Clear any cached installed status checks by re-rendering when we come back
-        # (This ensures fresh filesystem checks when returning from install/delete)
 
         # Show category buttons
         if self.category_container is None:
@@ -331,30 +336,48 @@ class AppStoreApp(app.App):
                 btn = lv.button(self.category_container)
                 btn.set_size(140, 36)
                 btn.add_style(self.style_btn_rel, 0)
-
-                if i == self.category_selected_idx:
-                    btn.add_style(self.style_btn_foc, 0)
+                btn.add_style(self.style_btn_foc, lv.STATE.FOCUSED)
 
                 lbl = lv.label(btn)
                 lbl.set_text(cat["name"])
                 lbl.center()
 
+                # Add event handlers
+                btn.add_event_cb(lambda e, c=cat["id"]: self.on_category_click(c), lv.EVENT.CLICKED, None)
+                btn.add_event_cb(self.on_key, lv.EVENT.KEY, None)
+                
+                if input.driver and input.driver.group:
+                    input.driver.group.add_obj(btn)
+
                 self.category_buttons.append(btn)
         else:
             self.category_container.remove_flag(lv.obj.FLAG.HIDDEN)
-            # Update selection highlight
-            for i, btn in enumerate(self.category_buttons):
-                try:
-                    btn.remove_style(self.style_btn_foc, 0)
-                except:
-                    pass
-                if i == self.category_selected_idx:
-                    btn.add_style(self.style_btn_foc, 0)
+            # Re-add to group and ensure key listener
+            if input.driver and input.driver.group:
+                for btn in self.category_buttons:
+                    input.driver.group.add_obj(btn)
+                    # Safe to add multiple times? No, let's just make sure it's there
+                    # LVGL usually removes existing before adding new or allows one.
+                    # Given we remove_all_objs, this is fresh.
+
+        # Focus first button
+        if self.category_buttons:
+            lv.group_focus_obj(self.category_buttons[self.category_selected_idx])
 
         # Update instructions
         self.info_label.set_text("UP/DN: Select | ENTER: View | ESC: Exit")
         self.info_label.remove_flag(lv.obj.FLAG.HIDDEN)
         lv.refr_now(None)
+
+    def on_category_click(self, category_id):
+        """Handle category button click."""
+        self.selected_category = category_id
+        # Find index for next time we show menu
+        for i, cat in enumerate(self.categories):
+            if cat["id"] == category_id:
+                self.category_selected_idx = i
+                break
+        self.show_app_list()
 
     def get_filtered_apps(self):
         """Get apps filtered by current category."""
@@ -489,61 +512,75 @@ class AppStoreApp(app.App):
             self.loading = False
 
     def render_list(self):
-        """Render the visible portion of the app list."""
-        self.log(f"render_list: selected={self.selected_idx}, visible_start={self.visible_start}")
+        """Render the complete app list within a scrollable container."""
+        self.log(f"render_list: selected={self.selected_idx}")
 
         # Clear existing buttons
         for btn in self.buttons:
             try:
                 btn.delete()
             except:
-                pass  # Already deleted
+                pass
         self.buttons = []
+
+        # Clear input group for list view
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.remove_all_objs()
 
         # Get filtered apps for current category
         filtered_apps = self.get_filtered_apps()
 
-        # Calculate visible range
-        end_idx = min(self.visible_start + self.visible_count, len(filtered_apps))
+        # Hide arrows (not needed with native scrolling)
+        self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+        self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
 
-        # Show/hide arrows
-        if self.visible_start > 0:
-            self.up_arrow.remove_flag(lv.obj.FLAG.HIDDEN)
-        else:
-            self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
-
-        if end_idx < len(filtered_apps):
-            self.down_arrow.remove_flag(lv.obj.FLAG.HIDDEN)
-        else:
-            self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
-
-        # Create buttons for visible items
-        for i in range(self.visible_start, end_idx):
-            app_info = filtered_apps[i]
+        # Create buttons for ALL filtered items
+        for i, app_info in enumerate(filtered_apps):
             name = app_info.get("name", "Unknown")
 
             # Check if installed
             installed = self.is_installed(app_info.get("id"))
             status_icon = "[*] " if installed else ""
-
             text = f"{status_icon}{name}"
 
             btn = lv.button(self.list_cont)
-            btn.set_size(180, 32)
+            btn.set_width(lv.pct(100)) # Fill width
+            btn.set_height(32)
             btn.add_style(self.style_btn_rel, 0)
-
-            # Highlight selected
-            if i == self.selected_idx:
-                btn.add_style(self.style_btn_foc, 0)
+            btn.add_style(self.style_btn_foc, lv.STATE.FOCUSED)
 
             lbl = lv.label(btn)
             lbl.set_text(text)
             lbl.center()
 
+            # Add event handlers
+            btn.add_event_cb(lambda e, idx=i: self.on_item_focused(idx), lv.EVENT.FOCUSED, None)
+            btn.add_event_cb(lambda e, info=app_info: self.show_app_menu(info), lv.EVENT.CLICKED, None)
+            btn.add_event_cb(self.on_key, lv.EVENT.KEY, None)
+
+            if input.driver and input.driver.group:
+                input.driver.group.add_obj(btn)
+
             self.buttons.append(btn)
+
+        # Focus current selection
+        if self.buttons:
+            if 0 <= self.selected_idx < len(self.buttons):
+                lv.group_focus_obj(self.buttons[self.selected_idx])
+            else:
+                lv.group_focus_obj(self.buttons[0])
 
         self.log(f"Rendered {len(self.buttons)} buttons")
         lv.refr_now(None)
+
+    def on_item_focused(self, idx):
+        """Handle focus on a list item."""
+        self.selected_idx = idx
+        # Ensure the list scrolls to follow focus (LVGL usually does this, 
+        # but let's be explicit if needed)
+        # self.buttons[idx].scroll_to_view(lv.ANIM.ON)
+        self.update_description()
 
     def update_description(self):
         """Update the right panel with selected app info."""
@@ -755,6 +792,11 @@ class AppStoreApp(app.App):
         app_name = app_info.get("name")
         is_installed = self.is_installed(app_id)
 
+        # Clear input group for overlay
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.remove_all_objs()
+
         # Build actions list first to calculate menu height
         self.menu_actions = []
         if is_installed:
@@ -779,7 +821,7 @@ class AppStoreApp(app.App):
 
         # Create semi-transparent overlay
         self.menu_overlay = lv.obj(self.screen)
-        self.menu_overlay.set_size(400, 280)
+        self.menu_overlay.set_size(400, 240) # Corrected height for badge
         self.menu_overlay.set_pos(0, 0)
         self.menu_overlay.set_style_bg_color(lv.color_black(), 0)
         self.menu_overlay.set_style_bg_opa(128, 0)  # 50% transparent
@@ -800,33 +842,41 @@ class AppStoreApp(app.App):
         title = lv.label(self.menu_container)
         title.set_text(app_name)
         title.set_style_text_color(lv.color_black(), 0)
-        try:
-            title.set_style_text_font(lv.font_montserrat_14, 0)
-        except:
-            pass
         title.set_width(220)
-        try:
-            title.set_long_mode(lv.LABEL_LONG.WRAP)
-        except:
-            pass
+        title.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
 
         # Create menu buttons
         self.menu_buttons = []
-        for i, (label, _) in enumerate(self.menu_actions):
+        for i, (label, action) in enumerate(self.menu_actions):
             btn = lv.button(self.menu_container)
             btn.set_size(220, 35)
             btn.add_style(self.style_btn_rel, 0)
-            if i == 0:
-                btn.add_style(self.style_btn_foc, 0)
+            btn.add_style(self.style_btn_foc, lv.STATE.FOCUSED)
 
             lbl = lv.label(btn)
             lbl.set_text(label)
             lbl.center()
 
+            # Add event handlers
+            btn.add_event_cb(lambda e, a=action: self.on_menu_click(a), lv.EVENT.CLICKED, None)
+            btn.add_event_cb(self.on_key, lv.EVENT.KEY, None)
+
+            if input.driver and input.driver.group:
+                input.driver.group.add_obj(btn)
+
             self.menu_buttons.append(btn)
+
+        # Focus first option
+        if self.menu_buttons:
+            lv.group_focus_obj(self.menu_buttons[0])
 
         self.menu_selected = 0
         lv.refr_now(None)
+
+    def on_menu_click(self, action):
+        """Handle click on menu action."""
+        self.hide_app_menu()
+        lv.async_call(lambda _: action(), None)
 
     def hide_app_menu(self):
         """Hide and cleanup the overlay menu."""
@@ -842,6 +892,9 @@ class AppStoreApp(app.App):
         self.menu_actions = []
         self.menu_selected = 0
         self.menu_visible = False
+        
+        # Restore app list focus by re-rendering
+        self.render_list()
         lv.refr_now(None)
 
     def show_project_qr(self, app_info):
@@ -1207,124 +1260,30 @@ class AppStoreApp(app.App):
         lv.refr_now(None)
 
     def on_key(self, e):
-        if self.loading:
-            return
-
         key = e.get_key()
-
-        # Handle category menu navigation
-        if self.current_view == "menu":
-            if key == lv.KEY.ESC:
+        
+        # Always allow exit/back regardless of loading state
+        if key == lv.KEY.ESC or key == lv.KEY.BACKSPACE or key == 14:
+            if self.menu_visible:
+                # Close overlay menu
+                self.hide_app_menu()
+            elif self.current_view == "list":
+                # Go back to category menu
+                self.show_category_menu()
+            else:
+                # Exit app
+                self.log("Exiting App Store")
                 self.exit()
                 if self.on_exit:
                     self.on_exit()
-            elif key == lv.KEY.UP:
-                self.category_selected_idx = (self.category_selected_idx - 1) % len(self.categories)
-                # Update button styles
-                for i, btn in enumerate(self.category_buttons):
-                    try:
-                        btn.remove_style(self.style_btn_foc, 0)
-                    except:
-                        pass
-                    if i == self.category_selected_idx:
-                        btn.add_style(self.style_btn_foc, 0)
-                lv.refr_now(None)
-            elif key == lv.KEY.DOWN:
-                self.category_selected_idx = (self.category_selected_idx + 1) % len(self.categories)
-                # Update button styles
-                for i, btn in enumerate(self.category_buttons):
-                    try:
-                        btn.remove_style(self.style_btn_foc, 0)
-                    except:
-                        pass
-                    if i == self.category_selected_idx:
-                        btn.add_style(self.style_btn_foc, 0)
-                lv.refr_now(None)
-            elif key == lv.KEY.ENTER:
-                # Select category and show app list
-                self.selected_category = self.categories[self.category_selected_idx]["id"]
-                self.show_app_list()
             return
 
-        # Handle app menu navigation (overlay menu when viewing app details)
-        if self.menu_visible:
-            if key == lv.KEY.ESC:
-                self.hide_app_menu()
-            elif key == lv.KEY.UP:
-                self.menu_selected = (self.menu_selected - 1) % len(self.menu_actions)
-
-                # Update button styles
-                for i, btn in enumerate(self.menu_buttons):
-                    try:
-                        btn.remove_style(self.style_btn_foc, 0)
-                    except:
-                        pass
-                    if i == self.menu_selected:
-                        btn.add_style(self.style_btn_foc, 0)
-                lv.refr_now(None)
-
-            elif key == lv.KEY.DOWN:
-                self.menu_selected = (self.menu_selected + 1) % len(self.menu_actions)
-
-                # Update button styles
-                for i, btn in enumerate(self.menu_buttons):
-                    try:
-                        btn.remove_style(self.style_btn_foc, 0)
-                    except:
-                        pass
-                    if i == self.menu_selected:
-                        btn.add_style(self.style_btn_foc, 0)
-                lv.refr_now(None)
-
-            elif key == lv.KEY.ENTER:
-                if 0 <= self.menu_selected < len(self.menu_actions):
-                    action = self.menu_actions[self.menu_selected][1]
-                    self.hide_app_menu()
-                    lv.async_call(lambda _: action(), None)
+        if self.loading:
             return
 
-        # Handle app list navigation
-        if key == lv.KEY.ESC:
-            # Go back to category menu
-            self.show_category_menu()
-
-        elif key == lv.KEY.UP:
-            filtered_apps = self.get_filtered_apps()
-            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
-                self.selected_idx = (self.selected_idx - 1) % len(filtered_apps)
-
-                # Scroll window if needed
-                if self.selected_idx < self.visible_start:
-                    self.visible_start = self.selected_idx
-                elif self.selected_idx >= self.visible_start + self.visible_count:
-                    self.visible_start = self.selected_idx - self.visible_count + 1
-
-                self.render_list()
-                self.update_description()
-
-        elif key == lv.KEY.DOWN:
-            filtered_apps = self.get_filtered_apps()
-            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
-                self.selected_idx = (self.selected_idx + 1) % len(filtered_apps)
-
-                # Scroll window if needed
-                if self.selected_idx < self.visible_start:
-                    self.visible_start = self.selected_idx
-                elif self.selected_idx >= self.visible_start + self.visible_count:
-                    self.visible_start = self.selected_idx - self.visible_count + 1
-
-                self.render_list()
-                self.update_description()
-
-        elif key == lv.KEY.ENTER:
-            filtered_apps = self.get_filtered_apps()
-            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
-                selected_app = filtered_apps[self.selected_idx]
-                self.show_app_menu(selected_app)
-
-        elif key == lv.KEY.LEFT or key == lv.KEY.RIGHT:
-            filtered_apps = self.get_filtered_apps()
-            if filtered_apps and not self.list_cont.has_flag(lv.obj.FLAG.HIDDEN):
+        # Handle sorting in list view
+        if self.current_view == "list" and not self.menu_visible:
+            if key == lv.KEY.LEFT or key == lv.KEY.RIGHT:
                 # Cycle sort mode
                 if key == lv.KEY.RIGHT:
                     self.sort_mode = (self.sort_mode + 1) % len(self.sort_modes)
@@ -1337,9 +1296,9 @@ class AppStoreApp(app.App):
                 # Re-sort and render
                 self.sort_apps()
                 self.selected_idx = 0
-                self.visible_start = 0
                 self.render_list()
                 self.update_description()
+                return
 
     def exit(self):
         # Clean up menu if visible

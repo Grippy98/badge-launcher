@@ -145,10 +145,13 @@ def load_apps_from_category(category_name):
                     sys.path.append(app_dir_path)
 
                 # Try multiple naming conventions
+                entry_underscore = entry.replace("-", "_")
                 possible_names = [
-                    f"{entry}_app.py",  # e.g., chiptunez/chiptunez_app.py
-                    "app.py",            # e.g., chiptunez/app.py
-                    f"{entry}.py"        # e.g., chiptunez/chiptunez.py
+                    f"{entry}_app.py",
+                    f"{entry_underscore}_app.py",
+                    "app.py",
+                    f"{entry}.py",
+                    f"{entry_underscore}.py"
                 ]
 
                 loaded = False

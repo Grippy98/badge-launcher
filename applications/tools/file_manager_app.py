@@ -167,8 +167,9 @@ class FileManagerApp(app.App):
         # Setup input group
         import input
         if input.driver and input.driver.group:
-            input.driver.group.set_editing(False)
+            input.driver.group.set_editing(True)
             input.driver.group.remove_all_objs()
+            self.screen.add_flag(lv.obj.FLAG.CLICKABLE)
             input.driver.group.add_obj(self.screen)
             lv.group_focus_obj(self.screen)
 
@@ -286,7 +287,7 @@ class FileManagerApp(app.App):
             pass
 
     def render_list(self):
-        """Render the visible portion of the file list."""
+        """Render the complete file list within a scrollable container."""
         # Clear existing buttons
         for btn in self.buttons:
             try:
@@ -295,48 +296,77 @@ class FileManagerApp(app.App):
                 pass
         self.buttons = []
 
-        # Calculate visible range
-        end_idx = min(self.visible_start + self.visible_count, len(self.items))
+        # Clear input group for list view
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.remove_all_objs()
 
-        # Show/hide arrows
-        if self.visible_start > 0:
-            self.up_arrow.remove_flag(lv.obj.FLAG.HIDDEN)
-        else:
-            self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+        # Hide arrows (not needed with native scrolling)
+        self.up_arrow.add_flag(lv.obj.FLAG.HIDDEN)
+        self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
 
-        if end_idx < len(self.items):
-            self.down_arrow.remove_flag(lv.obj.FLAG.HIDDEN)
-        else:
-            self.down_arrow.add_flag(lv.obj.FLAG.HIDDEN)
-
-        # Create buttons for visible items
-        for i in range(self.visible_start, end_idx):
-            name, is_dir, size = self.items[i]
-
+        # Create buttons for ALL items
+        for i, (name, is_dir, size) in enumerate(self.items):
             # Show folder icon or file indicator
             prefix = "[D] " if is_dir else "[F] "
             text = f"{prefix}{name}"
 
             btn = lv.button(self.list_cont)
-            btn.set_size(175, 35)
+            btn.set_width(lv.pct(100))
+            btn.set_height(35)
             btn.add_style(self.style_btn_rel, 0)
-
-            # Highlight selected
-            if i == self.selected_idx:
-                btn.add_style(self.style_btn_foc, 0)
+            btn.add_style(self.style_btn_foc, lv.STATE.FOCUSED)
 
             lbl = lv.label(btn)
             lbl.set_text(text)
-            lbl.set_width(160)
+            lbl.set_width(lv.pct(90))
             try:
                 lbl.set_long_mode(lv.LABEL_LONG.DOT)
             except:
                 pass
             lbl.align(lv.ALIGN.LEFT_MID, 5, 0)
 
+            # Add event handlers
+            btn.add_event_cb(lambda e, idx=i: self.on_item_focused(idx), lv.EVENT.FOCUSED, None)
+            btn.add_event_cb(lambda e, n=name, d=is_dir: self.on_item_click(n, d), lv.EVENT.CLICKED, None)
+            btn.add_event_cb(self.on_key, lv.EVENT.KEY, None)
+
+            if input.driver and input.driver.group:
+                input.driver.group.add_obj(btn)
+
             self.buttons.append(btn)
 
+        # Focus current selection
+        if self.buttons:
+            if 0 <= self.selected_idx < len(self.buttons):
+                lv.group_focus_obj(self.buttons[self.selected_idx])
+            else:
+                lv.group_focus_obj(self.buttons[0])
+
         lv.refr_now(None)
+
+    def on_item_focused(self, idx):
+        """Handle focus on a list item."""
+        self.selected_idx = idx
+        self.update_description()
+
+    def on_item_click(self, name, is_dir):
+        """Handle click on a list item."""
+        if is_dir:
+            # Enter directory
+            if self.current_path.endswith('/'):
+                self.current_path += name
+            else:
+                self.current_path += '/' + name
+            self.load_directory()
+            self.selected_idx = 0
+            self.visible_start = 0
+            self.sort_label.set_text(self.current_path)
+            self.render_list()
+            self.update_description()
+        else:
+            # Show item menu for files
+            self.show_item_menu()
 
     def update_description(self):
         """Update the right panel with selected item info."""
@@ -387,6 +417,11 @@ class FileManagerApp(app.App):
 
         self.menu_visible = True
 
+        # Clear input group for overlay
+        import input
+        if input.driver and input.driver.group:
+            input.driver.group.remove_all_objs()
+
         # Build actions list
         self.menu_actions = []
 
@@ -413,7 +448,7 @@ class FileManagerApp(app.App):
 
         # Create semi-transparent overlay
         self.menu_overlay = lv.obj(self.screen)
-        self.menu_overlay.set_size(400, 280)
+        self.menu_overlay.set_size(400, 240)
         self.menu_overlay.set_pos(0, 0)
         self.menu_overlay.set_style_bg_color(lv.color_black(), 0)
         self.menu_overlay.set_style_bg_opa(128, 0)
@@ -434,33 +469,41 @@ class FileManagerApp(app.App):
         title = lv.label(self.menu_container)
         title.set_text(name)
         title.set_style_text_color(lv.color_black(), 0)
-        try:
-            title.set_style_text_font(lv.font_montserrat_14, 0)
-        except:
-            pass
         title.set_width(220)
-        try:
-            title.set_long_mode(lv.LABEL_LONG.DOT)
-        except:
-            pass
+        title.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
 
         # Create menu buttons
         self.menu_buttons = []
-        for i, (label, _) in enumerate(self.menu_actions):
+        for i, (label, action) in enumerate(self.menu_actions):
             btn = lv.button(self.menu_container)
             btn.set_size(220, 40)
             btn.add_style(self.style_btn_rel, 0)
-            if i == 0:
-                btn.add_style(self.style_btn_foc, 0)
+            btn.add_style(self.style_btn_foc, lv.STATE.FOCUSED)
 
             lbl = lv.label(btn)
             lbl.set_text(label)
             lbl.center()
 
+            # Add event handlers
+            btn.add_event_cb(lambda e, a=action: self.on_menu_click(a), lv.EVENT.CLICKED, None)
+            btn.add_event_cb(self.on_key, lv.EVENT.KEY, None)
+
+            if input.driver and input.driver.group:
+                input.driver.group.add_obj(btn)
+
             self.menu_buttons.append(btn)
+
+        # Focus first option
+        if self.menu_buttons:
+            lv.group_focus_obj(self.menu_buttons[0])
 
         self.menu_selected = 0
         lv.refr_now(None)
+
+    def on_menu_click(self, action):
+        """Handle click on menu action."""
+        self.hide_item_menu()
+        lv.async_call(lambda _: action(), None)
 
     def hide_item_menu(self):
         """Hide and cleanup the overlay menu."""
@@ -476,6 +519,9 @@ class FileManagerApp(app.App):
         self.menu_actions = []
         self.menu_selected = 0
         self.menu_visible = False
+        
+        # Restore focus to list
+        self.render_list()
         lv.refr_now(None)
 
     def enter_directory(self):
@@ -688,86 +734,40 @@ class FileManagerApp(app.App):
         """Handle keyboard input."""
         key = e.get_key()
 
-        if self.menu_visible:
-            # Handle menu navigation
-            if key == lv.KEY.UP:
-                self.menu_selected = (self.menu_selected - 1) % len(self.menu_actions)
-                for i, btn in enumerate(self.menu_buttons):
-                    try:
-                        btn.remove_style(self.style_btn_foc, 0)
-                    except:
-                        pass
-                    if i == self.menu_selected:
-                        btn.add_style(self.style_btn_foc, 0)
-                lv.refr_now(None)
-            elif key == lv.KEY.DOWN:
-                self.menu_selected = (self.menu_selected + 1) % len(self.menu_actions)
-                for i, btn in enumerate(self.menu_buttons):
-                    try:
-                        btn.remove_style(self.style_btn_foc, 0)
-                    except:
-                        pass
-                    if i == self.menu_selected:
-                        btn.add_style(self.style_btn_foc, 0)
-                lv.refr_now(None)
-            elif key == lv.KEY.ENTER:
-                # Execute selected action
-                if self.menu_selected < len(self.menu_actions):
-                    _, action = self.menu_actions[self.menu_selected]
-                    action()
-            elif key == lv.KEY.ESC:
+        # Handle global ESC/Back/Parent
+        if key == lv.KEY.ESC or key == lv.KEY.LEFT or key == lv.KEY.BACKSPACE or key == 14:
+            if self.menu_visible:
+                # Close overlay menu
                 self.hide_item_menu()
-        else:
-            # Handle list navigation
-            if key == lv.KEY.ESC:
-                # Go back - check if we're at starting directory
-                current_norm = self.current_path.rstrip('/')
-                starting_norm = self.starting_path.rstrip('/')
-                if current_norm == starting_norm:
-                    # Exit app
-                    self.exit()
-                    if self.on_exit:
-                        self.on_exit()
-                else:
-                    # Go to parent directory
-                    parent = self.get_parent_dir(self.current_path)
-                    if parent:
-                        self.current_path = parent
-                    else:
-                        self.current_path = self.starting_path
-                    self.load_directory()
-                    self.selected_idx = 0
-                    self.visible_start = 0
-                    self.sort_label.set_text(self.current_path)
-                    self.render_list()
-                    self.update_description()
-            elif key == lv.KEY.UP:
-                if self.selected_idx > 0:
-                    self.selected_idx -= 1
-                    if self.selected_idx < self.visible_start:
-                        self.visible_start = self.selected_idx
-                    self.render_list()
-                    self.update_description()
-            elif key == lv.KEY.DOWN:
-                if self.selected_idx < len(self.items) - 1:
-                    self.selected_idx += 1
-                    if self.selected_idx >= self.visible_start + self.visible_count:
-                        self.visible_start = self.selected_idx - self.visible_count + 1
-                    self.render_list()
-                    self.update_description()
-            elif key == lv.KEY.ENTER:
-                # Open directory or show menu
-                if not self.items:
-                    return
+                return
 
-                name, is_dir, size = self.items[self.selected_idx]
+            if self.text_overlay:
+                # Close text viewer
+                self.hide_text_file()
+                return
 
-                if is_dir:
-                    # Enter directory directly
-                    self.enter_directory()
+            # Directory back navigation
+            current_norm = self.current_path.rstrip('/')
+            starting_norm = self.starting_path.rstrip('/')
+            if current_norm == starting_norm:
+                # Exit app
+                self.exit()
+                if self.on_exit:
+                    self.on_exit()
+            else:
+                # Go to parent directory
+                parent = self.get_parent_dir(self.current_path)
+                if parent:
+                    self.current_path = parent
                 else:
-                    # Show menu for files
-                    self.show_item_menu()
+                    self.current_path = self.starting_path
+                self.load_directory()
+                self.selected_idx = 0
+                self.visible_start = 0
+                self.sort_label.set_text(self.current_path)
+                self.render_list()
+                self.update_description()
+            return
 
     def exit(self):
         """Cleanup and exit the file manager."""

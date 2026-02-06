@@ -507,14 +507,14 @@ class MenuApp:
                 except:
                     pass
 
-        # UP/DOWN - manual focus navigation (SDL doesn't auto-navigate)
-        elif key == lv.KEY.UP:
+        # UP/DOWN - manual focus navigation (SDL and Physical buttons)
+        elif key == lv.KEY.UP or key == lv.KEY.PREV:
             import input
             if input.driver and input.driver.group:
                 input.driver.group.focus_prev()
                 lv.refr_now(None)
 
-        elif key == lv.KEY.DOWN:
+        elif key == lv.KEY.DOWN or key == lv.KEY.NEXT:
             import input
             if input.driver and input.driver.group:
                 input.driver.group.focus_next()
