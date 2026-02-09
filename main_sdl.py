@@ -4,7 +4,7 @@ Provides full UI testing with SDL display backend, allowing development
 and testing without physical badge hardware.
 
 Requirements:
-    Build MicroPython with LVGL using setup_mac_dev.sh
+    Build MicroPython with LVGL using setup_sdl_dev.sh (works on Linux too)
     Run with: micropython-lvgl main_sdl.py
 
 Controls:

@@ -8,7 +8,7 @@ Multiple testing approaches for development without physical hardware.
 Fastest way to verify apps load correctly:
 
 ```bash
-python3 test_apps_mac.py
+python3 test_apps_sdl.py
 ```
 
 Tests that all apps can be imported and instantiated without errors.
@@ -18,14 +18,14 @@ Tests app logic, game mechanics, and state management:
 
 ```bash
 # Test all apps
-python3 test_logic_mac.py
+python3 test_logic_sdl.py
 
 # Test specific app
-python3 test_logic_mac.py snake
-python3 test_logic_mac.py chiptunez
+python3 test_logic_sdl.py snake
+python3 test_logic_sdl.py chiptunez
 
 # Verbose output with full tracebacks
-python3 test_logic_mac.py --verbose
+python3 test_logic_sdl.py --verbose
 ```
 
 **What it tests:**
@@ -117,12 +117,12 @@ jobs:
       - uses: actions/setup-python@v2
         with:
           python-version: '3.9'
-      - run: python3 test_logic_mac.py
+      - run: python3 test_logic_sdl.py
 ```
 
 ## Development Workflow
 
-1. **Quick Iteration**: Edit code → Run `python3 test_logic_mac.py` → Fix issues
+1. **Quick Iteration**: Edit code → Run `python3 test_logic_sdl.py` → Fix issues
 2. **Visual Check**: Run `python3 main_sdl.py` (if SDL is set up)
 3. **Final Validation**: Deploy to physical badge for hardware testing
 
@@ -133,12 +133,12 @@ jobs:
 If tests fail, run with `--verbose` to see full tracebacks:
 
 ```bash
-python3 test_logic_mac.py snake --verbose
+python3 test_logic_sdl.py snake --verbose
 ```
 
 ### Missing Mock Functions
 
-If you see `AttributeError` for missing LVGL functions, add them to [test_logic_mac.py](test_logic_mac.py) in the `MockLVGL` class.
+If you see `AttributeError` for missing LVGL functions, add them to [test_logic_sdl.py](test_logic_sdl.py) in the `MockLVGL` class.
 
 ### SDL Build Failures
 
@@ -169,6 +169,6 @@ elif "My New App" in name:
 
 - [README.md](README.md) - Main project documentation
 - [README_SDL_DEV.md](README_SDL_DEV.md) - SDL development setup
-- [test_apps_mac.py](test_apps_mac.py) - Simple import tester
-- [test_logic_mac.py](test_logic_mac.py) - Logic test suite
+- [test_apps_sdl.py](test_apps_sdl.py) - Simple import tester
+- [test_logic_sdl.py](test_logic_sdl.py) - Logic test suite
 - [main_sdl.py](main_sdl.py) - SDL launcher for visual testing

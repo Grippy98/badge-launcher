@@ -12,3 +12,8 @@ applications/apps/__pycache__/tux_driver_app.cpython-314.pyc
 *.deb
 /photos
 *.jpg
+/applications/__pycache__
+/applications/apps/__pycache__
+/applications/games/__pycache__
+/applications/settings/__pycache__
+/core/__pycache__

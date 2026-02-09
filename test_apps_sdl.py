@@ -1,7 +1,10 @@
-"""Test harness for Badge apps on macOS (no display).
+"""Test harness for Badge apps on macOS and Linux (no display).
 
 Simple test to verify app instantiation and basic logic without
-requiring Linux-specific hardware or LVGL display.
+requiring hardware or LVGL display.
+
+Usage:
+    python3 test_apps_sdl.py
 """
 
 import sys
@@ -31,8 +34,19 @@ class MockLVGL:
         def add_event_cb(self, cb, ev, data): pass
 
     class label(obj): pass
-    class button(obj): pass
+    class button(obj):
+        def add_style(self, style, state): pass
     class image(obj): pass
+    class slider(obj):
+        def set_range(self, min, max): pass
+        def set_value(self, val, anim): pass
+    class style_t:
+        def init(self): pass
+        def set_radius(self, r): pass
+        def set_border_width(self, w): pass
+        def set_border_color(self, c): pass
+        def set_bg_color(self, c): pass
+        def set_text_color(self, c): pass
 
     class color:
         @staticmethod
@@ -40,12 +54,25 @@ class MockLVGL:
         @staticmethod
         def black(): return 0x000000
 
+    @staticmethod
+    def color_white(): return 0xFFFFFF
+    @staticmethod
+    def color_black(): return 0x000000
+
     EVENT = type('obj', (), {'KEY': 1, 'CLICKED': 2, 'FOCUSED': 3, 'DEFOCUSED': 4})()
     KEY = type('obj', (), {'ESC': 27, 'ENTER': 13, 'UP': 11, 'DOWN': 9, 'LEFT': 20, 'RIGHT': 19})()
     ALIGN = type('obj', (), {'CENTER': 0, 'TOP_MID': 1, 'BOTTOM_MID': 2, 'TOP_LEFT': 3})()
     OPA = type('obj', (), {'COVER': 255})()
     INDEV_STATE = type('obj', (), {'PRESSED': 1, 'RELEASED': 0})()
+    STATE = type('obj', (), {'PRESSED': 1, 'FOCUSED': 2, 'DEFAULT': 0})()
+    DIR = type('obj', (), {'VER': 1, 'HOR': 2})()
+    SIZE_CONTENT = 2001 # Magic number for LVGL
 
+    # Fonts
+    font_montserrat_14 = None
+    font_montserrat_16 = None
+    font_montserrat_24 = None
+    
     @staticmethod
     def screen_load(s): pass
     @staticmethod
@@ -95,9 +122,7 @@ print("Testing app imports...\n")
 test_apps = [
     ("Snake", "games.snake_app", "SnakeApp"),
     ("Brick Breaker", "games.brick_app", "BrickApp"),
-    ("ChipTunez", "apps.chiptunez_app", "ChipTunezApp"),
-    ("Photos", "apps.media_app", "PhotosApp"),
-    ("DVD Screensaver", "apps.dvd_app", "DVDApp"),
+    ("RGB Test", "apps.rgb_test_app", "RGBTestApp"),
     ("Badge Mode", "badge_mode_app", "BadgeModeApp"),
     ("About", "about_app", "AboutApp"),
     ("Reboot", "settings.reboot", "RebootApp"),

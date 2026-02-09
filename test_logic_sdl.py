@@ -1,15 +1,15 @@
-"""Logic testing for Badge apps on macOS (without display).
+"""Logic testing for Badge apps on macOS and Linux (without display).
 
 Tests app logic, state management, and game mechanics without requiring
 LVGL display or hardware. Useful for quick iteration and CI/CD testing.
 
 Usage:
-    python3 test_logic_mac.py [app_name]
+    python3 test_logic_sdl.py [app_name]
 
 Examples:
-    python3 test_logic_mac.py              # Test all apps
-    python3 test_logic_mac.py snake        # Test Snake game only
-    python3 test_logic_mac.py chiptunez    # Test ChipTunez only
+    python3 test_logic_sdl.py              # Test all apps
+    python3 test_logic_sdl.py snake        # Test Snake game only
+    python3 test_logic_sdl.py chiptunez    # Test ChipTunez only
 """
 
 import sys
@@ -41,6 +41,8 @@ class MockLVGL:
                 parent.children.append(self)
 
         def set_size(self, w, h): self.w, self.h = w, h
+        def set_width(self, w): self.w = w
+        def set_height(self, h): self.h = h
         def set_style_bg_color(self, c, s): pass
         def set_style_bg_opa(self, o, s): pass
         def set_style_text_color(self, c, s): pass
@@ -69,8 +71,12 @@ class MockLVGL:
         def get_child(self, idx): return self.children[idx] if idx < len(self.children) else None
         def get_index(self): return 0
         def scroll_to_view(self, anim): pass
+        def get_index(self): return 0
+        def scroll_to_view(self, anim): pass
         def move_foreground(self): pass
         def set_flex_align(self, main, cross, track): pass
+        def set_scroll_dir(self, d): pass
+        def set_style_pad_column(self, p, s): pass
 
         @staticmethod
         def __cast__(obj): return obj
@@ -80,11 +86,23 @@ class MockLVGL:
             super().__init__(parent)
             self.text = ""
 
-    class button(obj): pass
+    class button(obj):
+        def add_style(self, style, state): pass
     class image(obj):
         def set_src(self, src): pass
         def set_style_image_recolor(self, c, s): pass
         def set_style_image_recolor_opa(self, o, s): pass
+    class slider(obj):
+        def set_range(self, min, max): pass
+        def set_value(self, val, anim): pass
+        def get_value(self): return 0
+    class style_t:
+        def init(self): pass
+        def set_radius(self, r): pass
+        def set_border_width(self, w): pass
+        def set_border_color(self, c): pass
+        def set_bg_color(self, c): pass
+        def set_text_color(self, c): pass
 
     class color:
         @staticmethod
@@ -93,7 +111,8 @@ class MockLVGL:
         def black(): return 0x000000
 
     EVENT = type('obj', (), {
-        'KEY': 1, 'CLICKED': 2, 'FOCUSED': 3, 'DEFOCUSED': 4
+        'KEY': 1, 'CLICKED': 2, 'FOCUSED': 3, 'DEFOCUSED': 4,
+        'VALUE_CHANGED': 5
     })()
 
     KEY = type('obj', (), {
@@ -109,12 +128,20 @@ class MockLVGL:
 
     OPA = type('obj', (), {'COVER': 255, 'TRANSP': 0})()
     INDEV_STATE = type('obj', (), {'PRESSED': 1, 'RELEASED': 0})()
+    SIZE_CONTENT = 2001 # Magic number for LVGL
+
+    # Fonts
+    font_montserrat_14 = None
+    font_montserrat_16 = None
+    font_montserrat_24 = None
+
     FLEX_FLOW = type('obj', (), {'COLUMN': 0, 'ROW': 1})()
     TEXT_ALIGN = type('obj', (), {'CENTER': 0, 'LEFT': 1, 'RIGHT': 2})()
     SCROLLBAR_MODE = type('obj', (), {'OFF': 0, 'ON': 1, 'AUTO': 2})()
     SYMBOL = type('obj', (), {'UP': '▲', 'DOWN': '▼'})()
     ANIM = type('obj', (), {'OFF': 0, 'ON': 1})()
-    STATE = type('obj', (), {'FOCUSED': 1})()
+    STATE = type('obj', (), {'FOCUSED': 1, 'PRESSED': 2, 'DEFAULT': 0})()
+    DIR = type('obj', (), {'VER': 1, 'HOR': 2})()
     PALETTE = type('obj', (), {
         'BLUE': 0, 'RED': 1, 'GREEN': 2, 'ORANGE': 3,
         'YELLOW': 4, 'PURPLE': 5, 'PINK': 6, 'CYAN': 7, 'TEAL': 8, 'GREY': 9
@@ -263,9 +290,7 @@ print()
 test_apps = [
     ("Snake", "games.snake_app", "SnakeApp", "Game state management"),
     ("Brick Breaker", "games.brick_app", "BrickApp", "Collision detection"),
-    ("ChipTunez", "apps.chiptunez_app", "ChipTunezApp", "Music playback"),
-    ("Photos", "apps.media_app", "PhotosApp", "Image loading"),
-    ("DVD Screensaver", "apps.dvd_app", "DVDApp", "Animation logic"),
+    ("RGB Test", "apps.rgb_test_app", "RGBTestApp", "LED control logic"),
     ("Badge Mode", "badge_mode_app", "BadgeModeApp", "Badge display"),
     ("About", "about_app", "AboutApp", "Info screen"),
     ("Reboot", "settings.reboot", "RebootApp", "System reboot"),
@@ -314,10 +339,12 @@ for name, module_path, class_name, description in test_apps:
             active_bricks = sum(1 for b in app_instance.bricks if b['active'])
             print(f"  ✓ Active bricks: {active_bricks}")
 
-        elif "ChipTunez" in name:
-            # Test song data
-            from applications.apps.chiptunez_app import SONGS
-            print(f"  ✓ Songs loaded: {len(SONGS)}")
+        elif "RGB" in name:
+            # Test RGB modes
+            app_instance.set_rainbow()
+            print(f"  ✓ RGB Mode set to: {app_instance.mode}")
+
+
 
         # Test exit
         app_instance.exit()

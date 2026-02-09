@@ -17,7 +17,7 @@ SDL mode allows you to:
 
 ```bash
 # Run the automated setup script (builds LVGL from source)
-./setup_mac_dev.sh
+./setup_sdl_dev.sh
 ```
 
 This script will:
@@ -29,8 +29,11 @@ This script will:
 ### Linux
 
 ```bash
-sudo apt-get install libsdl2-dev cmake build-essential
-./setup_mac_dev.sh  # Same script works on Linux
+# Install dependencies
+sudo apt-get install libsdl2-dev cmake build-essential python3-dev python3-pip python3-venv libffi-dev pkg-config
+
+# Run the automated setup script
+./setup_sdl_dev.sh
 ```
 
 ## Running
@@ -94,7 +97,7 @@ The SDL version automatically mocks these Linux-specific features:
 
 ## Development Workflow
 
-1. Edit code on Mac
+1. Edit code
 2. Test in SDL mode: `python3 main_sdl.py`
 3. Iterate quickly
 4. Deploy to badge for final hardware testing
@@ -149,4 +152,4 @@ applications/
 ## See Also
 
 - [README.md](README.md) - Badge hardware deployment
-- [test_apps_mac.py](test_apps_mac.py) - Simple import testing without UI
+- [test_apps_sdl.py](test_apps_sdl.py) - Simple import testing without UI

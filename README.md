@@ -9,7 +9,7 @@ A MicroPython-based launcher for the BeagleBadge, using LVGL (Light and Versatil
 
 ### OS Requirements
 - Linux distribution with `systemd` (e.g., Debian)
-- Display: 296x128 E-Ink display
+- Display: 400x300 E-Ink display
 - Input: GPIO buttons or compatible input device
 
 ### Host System Requirements (for development)
@@ -69,6 +69,11 @@ apt install -y build-essential libreadline-dev libffi-dev pkg-config
 
 # I2C tools (for I2C Scanner application)
 apt install -y i2c-tools
+```
+
+### Required Packages for Development (Linux/SDL)
+```bash
+sudo apt-get install libsdl2-dev cmake build-essential python3-dev python3-pip python3-venv libffi-dev
 ```
 
 ## Installation
@@ -193,10 +198,13 @@ Images must be converted to raw binary format for fast loading on the E-Ink disp
 
 The `img2bin` tool is required for the Photos app to convert images on-the-fly.
 
+> **Note:** The source file `tools/img2bin.c` is currently missing from the repository. Using the pre-compiled binary is recommended if available for your architecture.
+
 ```bash
-# From project root
+# If source is available:
 gcc -o img2bin tools/img2bin.c -lm -O2
 ```
+
 
 This creates the `img2bin` binary in the project root.
 
@@ -225,7 +233,7 @@ This creates the `img2bin` binary in the project root.
 - `cover` - Cover target area, maintain aspect ratio, crop from center if needed
 
 The tool:
-- Resizes images to specified dimensions (default: 128x128)
+- Resizes images to specified dimensions (default: 400x300)
 - Converts to L8 (grayscale) format
 - Applies Floyd-Steinberg dithering for E-Ink display
 - Supports aspect ratio preservation with letterboxing/pillarboxing

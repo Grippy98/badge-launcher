@@ -1,11 +1,11 @@
 #!/bin/bash
-# Setup script for Badge Launcher SDL development on macOS
+# Setup script for Badge Launcher SDL development on Linux/macOS
 # Builds LVGL Python bindings from source with SDL support
 
 set -e  # Exit on error
 
 echo "====================================="
-echo "Badge Launcher - Mac Development Setup"
+echo "Badge Launcher - SDL Development Setup"
 echo "====================================="
 echo ""
 echo "This will:"
@@ -19,19 +19,37 @@ if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
 fi
 
-# Check if Homebrew is installed
-if ! command -v brew &> /dev/null; then
-    echo "❌ Homebrew not found. Please install from https://brew.sh"
-    exit 1
+OS_TYPE="unknown"
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    OS_TYPE="linux"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    OS_TYPE="macos"
 fi
 
-echo ""
-echo "✓ Homebrew found"
+echo "Detected OS: $OS_TYPE"
 
-# Install dependencies
-echo ""
-echo "📦 Installing dependencies..."
-brew install sdl2 cmake python3 pkg-config libffi
+if [ "$OS_TYPE" == "macos" ]; then
+    # Check if Homebrew is installed
+    if ! command -v brew &> /dev/null; then
+        echo "❌ Homebrew not found. Please install from https://brew.sh"
+        exit 1
+    fi
+    echo "✓ Homebrew found"
+    
+    echo ""
+    echo "📦 Installing dependencies..."
+    brew install sdl2 cmake python3 pkg-config libffi
+elif [ "$OS_TYPE" == "linux" ]; then
+    echo ""
+    echo "📦 Installing dependencies (requires sudo)..."
+    # User should have already installed these via the plan, but good to ensure
+    sudo apt-get update
+    sudo apt-get install -y libsdl2-dev cmake build-essential python3-dev python3-pip python3-venv libffi-dev pkg-config
+else
+    echo "⚠️  Unsupported OS: $OSTYPE"
+    echo "Please install SDL2, CMake, and build tools manually."
+fi
+
 
 # Create build directory
 BUILD_DIR="$HOME/.lvgl_build"
@@ -87,11 +105,20 @@ echo "🔨 Building LVGL module..."
 cat > build_sdl.py << 'BUILDSCRIPT'
 import os
 import sys
+import subprocess
 
 # Set environment for SDL
-os.environ['SDL_CONFIG'] = '/opt/homebrew/bin/sdl2-config'
+if sys.platform == 'darwin':
+    os.environ['SDL_CONFIG'] = '/opt/homebrew/bin/sdl2-config'
+else:
+    # Linux usually has sdl2-config in path or via pkg-config
+    try:
+        sdl_config = subprocess.check_output(['which', 'sdl2-config']).decode().strip()
+        os.environ['SDL_CONFIG'] = sdl_config
+    except:
+        pass # Hope it's in path or pkg-config works
 
-# Build command
+# Build command (adjusting for user_c_modules path relative to ports/unix)
 build_cmd = """
 make -C ports/unix VARIANT=dev \\
     USER_C_MODULES=../../lv_binding_micropython/lvgl/micropython.cmake \\
@@ -110,6 +137,7 @@ cat > setup_sdl.py << 'SETUPSCRIPT'
 import os
 import sys
 from pathlib import Path
+import subprocess
 
 # Try to build using the lib/lv_bindings approach
 lv_bindings = Path(__file__).parent / "lib" / "lv_bindings"
@@ -119,8 +147,9 @@ if lv_bindings.exists():
 
     # Set SDL environment
     os.environ['LV_CONF_INCLUDE_SIMPLE'] = '1'
-    os.environ['SDL_CONFIG'] = '/opt/homebrew/bin/sdl2-config'
-
+    if sys.platform == 'darwin':
+        os.environ['SDL_CONFIG'] = '/opt/homebrew/bin/sdl2-config'
+    
     # Run build
     build_cmd = f"{sys.executable} -m pip install . --use-pep517"
     print(f"Running: {build_cmd}")
@@ -151,9 +180,11 @@ if [ -d "lib/lv_bindings" ]; then
     cd lib/lv_bindings
 
     # Set up environment for SDL
-    export SDL_CONFIG=/opt/homebrew/bin/sdl2-config
     export LV_CONF_INCLUDE_SIMPLE=1
-
+    if [ "$OS_TYPE" == "macos" ]; then
+        export SDL_CONFIG=/opt/homebrew/bin/sdl2-config
+    fi
+    
     # Build and install (using venv pip)
     pip install . --use-pep517 || {
         echo "⚠️  Standard build failed, trying with --no-build-isolation..."
@@ -184,8 +215,10 @@ else
     # Build unix port with SDL
     cd ports/unix
 
-    # Set up PKG_CONFIG_PATH for libffi
-    export PKG_CONFIG_PATH="/opt/homebrew/opt/libffi/lib/pkgconfig:$PKG_CONFIG_PATH"
+    # Set up PKG_CONFIG_PATH for libffi (macOS specific)
+    if [ "$OS_TYPE" == "macos" ]; then
+        export PKG_CONFIG_PATH="/opt/homebrew/opt/libffi/lib/pkgconfig:$PKG_CONFIG_PATH"
+    fi
 
     # Build with LVGL variant (includes LVGL module)
     make VARIANT=lvgl
