@@ -18,7 +18,7 @@ echo "Syncing files to $BADGE_USER@$BADGE_IP:$DEST_DIR..."
 sshpass -p "$BADGE_PASS" ssh -o StrictHostKeyChecking=no "$BADGE_USER@$BADGE_IP" "mkdir -p $DEST_DIR"
 
 # Sync files (excluding git and other unnecessary files)
-sshpass -p "$BADGE_PASS" rsync -avz --delete --exclude '.git' --exclude '.gitignore' --exclude 'sync.sh' --exclude 'micropython' --exclude 'build/' --exclude 'build-standard/' --exclude '*.so' --exclude '*.a' --exclude '*.o' ./ "$BADGE_USER@$BADGE_IP:$DEST_DIR/"
+sshpass -p "$BADGE_PASS" rsync -avz --delete --exclude '.git' --exclude '.gitignore' --exclude 'sync.sh' --exclude 'build/' --exclude 'build-standard/' --exclude '*.so' --exclude '*.a' --exclude '*.o' ./ "$BADGE_USER@$BADGE_IP:$DEST_DIR/"
 
 # Set permissions
 echo "Setting permissions..."
