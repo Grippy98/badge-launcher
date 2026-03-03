@@ -2,12 +2,12 @@ Source: badge-launcher
 Section: utils
 Priority: optional
 Maintainer: Andrei Aldea andrei@ti.com
-Build-Depends: debhelper-compat (= 13), libusb-1.0-0-dev, rsync, build-essential
+Build-Depends: debhelper-compat (= 13), rsync, build-essential
 Standards-Version: 4.5.0
 
 Package: badge-launcher
 Architecture: arm64
-Depends: ${shlibs:Depends}, ${misc:Depends}, libusb-1.0-0, libsdl2-2.0-0, rsync
-Description: Python-based Badge Launcher for Tux Droid
- A comprehensive launcher and driver suite for the Tux Droid on BeagleBoard/Badge.
- Includes LVGL-based UI, Tux Driver (libtuxdriver), and systemd integration.
+Depends: ${shlibs:Depends}, ${misc:Depends}, libsdl2-2.0-0, rsync, git, network-manager, bluez, i2c-tools, psmisc, curl
+Description: Python-based Badge Launcher for BeagleBadge
+ A comprehensive launcher and driver suite for the BeagleBadge.
+ Includes LVGL-based UI and systemd integration.

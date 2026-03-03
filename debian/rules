@@ -4,8 +4,7 @@
 	dh $@
 
 override_dh_auto_build:
-	# Compile libtuxdriver from source
-	cd libtuxdriver/unix && make USE_LIBUSB=1
+	# Build nothing (Python app)
 
 override_dh_auto_install:
 	# Create target directory
@@ -18,10 +17,5 @@ override_dh_auto_install:
 	mkdir -p debian/badge-launcher/lib/systemd/system
 	cp debian/badge-launcher.service debian/badge-launcher/lib/systemd/system/
 
-	# Install udev rules
-	mkdir -p debian/badge-launcher/lib/udev/rules.d
-	cp libtuxdriver/99-tuxdroid.rules debian/badge-launcher/lib/udev/rules.d/
-
 override_dh_auto_clean:
-	cd libtuxdriver/unix && make clean || true
 	dh_auto_clean

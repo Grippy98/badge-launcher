@@ -56,7 +56,6 @@ badge-slop/
 ├── tests/                   # Test scripts
 ├── debian/                  # Debian packaging files
 ├── lv_micropython/         # MicroPython with LVGL (submodule)
-└── libtuxdriver/           # Tux driver library (submodule)
 ```
 
 ## System Dependencies
