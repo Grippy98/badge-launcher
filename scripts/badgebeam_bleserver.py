@@ -153,7 +153,8 @@ class Advertisement(dbus.service.Object):
                 'Type': self.ad_type,
                 'ServiceUUIDs': dbus.Array(self.service_uuids, signature='s'),
                 'LocalName': dbus.String(self.local_name),
-                'Discoverable': dbus.Boolean(True)
+                'Discoverable': dbus.Boolean(True),
+                'Secondary_Channel': dbus.String('1M')
             }
         }
 
