@@ -151,6 +151,7 @@ class Advertisement(dbus.service.Object):
         return {
             'org.bluez.LEAdvertisement1': {
                 'Type': self.ad_type,
+                'ServiceUUIDs': dbus.Array(self.service_uuids, signature='s'),
                 'LocalName': dbus.String(self.local_name),
                 'Discoverable': dbus.Boolean(True)
             }
