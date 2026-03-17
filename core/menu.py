@@ -316,7 +316,9 @@ class MenuApp:
         self.menu_list_cont.set_style_pad_all(5, 0)
         self.menu_list_cont.set_style_pad_gap(5, 0)
         self.menu_list_cont.set_style_border_width(0, 0)
-        self.menu_list_cont.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+        self.menu_list_cont.set_scrollbar_mode(lv.SCROLLBAR_MODE.AUTO)
+        self.menu_list_cont.add_flag(lv.obj.FLAG.SCROLLABLE)
+        self.menu_list_cont.add_flag(lv.obj.FLAG.SCROLL_ON_FOCUS)
 
         # Down Arrow (absolute positioning with balanced padding and larger font)
         self.down_arrow = lv.label(right_panel)
