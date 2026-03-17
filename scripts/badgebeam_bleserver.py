@@ -138,83 +138,10 @@ class DisplayCharacteristic(Characteristic):
             buffer_cache = bytearray(bytes_val)
 
 
-class Advertisement(dbus.service.Object):
-    def __init__(self, bus, index, advertising_type):
-        self.path = f'/org/bluez/example/advertisement{index}'
-        self.bus = bus
-        self.ad_type = advertising_type
-        self.service_uuids = [BADGE_SERVICE_UUID]
-        self.local_name = 'BeagleBadge'
-        dbus.service.Object.__init__(self, bus, self.path)
-
-    def get_properties(self):
-        return {
-            'org.bluez.LEAdvertisement1': {
-                'Type': self.ad_type,
-                'ServiceUUIDs': dbus.Array(self.service_uuids, signature='s'),
-                'LocalName': dbus.String(self.local_name),
-                'Discoverable': dbus.Boolean(True),
-                'Secondary_Channel': dbus.String('1M')
-            }
-        }
-
-    def get_path(self):
-        return dbus.ObjectPath(self.path)
-
-    @dbus.service.method(DBUS_OM_IFACE, out_signature='a{oa{sa{sv}}}')
-    def GetManagedObjects(self):
-        return {self.path: self.get_properties()}
-
-    @dbus.service.method('org.bluez.LEAdvertisement1')
-    def Release(self):
-        pass
-
-def register_app_cb():
-    print('GATT application registered')
-
-def register_app_error_cb(error):
-    print(f'Failed to register application: {error}')
-    sys.exit(1)
-
-def register_ad_cb():
-    print('Advertisement registered')
-
-def register_ad_error_cb(error):
-    print(f'Failed to register advertisement: {error}')
-    sys.exit(1)
-
-def find_adapter(bus):
-    remote_om = dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, '/'), DBUS_OM_IFACE)
-    objects = remote_om.GetManagedObjects()
-
-    for o, props in objects.items():
-        if LE_ADVERTISING_MANAGER_IFACE in props:
-            return dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, o), LE_ADVERTISING_MANAGER_IFACE), \
-                   dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, o), GATT_MANAGER_IFACE), \
-                   dbus.Interface(bus.get_object(BLUEZ_SERVICE_NAME, o), 'org.freedesktop.DBus.Properties')
-    return None, None, None
-
-def main():
-    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
-    bus = dbus.SystemBus()
-
-    ad_manager, gatt_manager, adapter_props = find_adapter(bus)
-    if not ad_manager:
-        print('LEAdvertisingManager1 interface not found')
-        return
-
-    # Ensure power is on
-    adapter_props.Set('org.bluez.Adapter1', 'Powered', dbus.Boolean(1))
-
-    app = Application(bus)
-    gatt_manager.RegisterApplication(app.get_path(), {},
-                                    reply_handler=register_app_cb,
-                                    error_handler=register_app_error_cb)
-
-    ad = Advertisement(bus, 0, 'peripheral')
-    ad_manager.RegisterAdvertisement(ad.get_path(), {},
-                                     reply_handler=register_ad_cb,
-                                     error_handler=register_ad_error_cb)
+    # We NO LONGER register an Advertisement via BlueZ because BlueZ 5.82
+    # incorrectly attempts to wrap it in an unsupported Extended Advertising Opcode
+    # which causes the CC33xx firmware to silently drop the packet.
+    # Advertising is handled cleanly via our custom legacy badgebeam_hcid.sh script.
 
     print("BadgeBeam BLE Profile started.")
     loop = GLib.MainLoop()
