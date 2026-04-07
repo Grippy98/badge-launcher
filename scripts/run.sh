@@ -11,5 +11,4 @@ clear > /dev/tty0
 SCRIPT_DIR="$(dirname "$(realpath "$0")")"
 APP_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$APP_DIR"
-# export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$APP_DIR"/libtuxdriver/unix
 ./micropython main.py

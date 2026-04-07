@@ -34,7 +34,7 @@ mkdir -p "$SERVICE_DIR"
 mkdir -p "$DEBIAN_DIR"
 
 echo "Copying application files..."
-rsync -av --exclude='debian' --exclude='.git' --exclude='lv_micropython' --exclude='*.deb' --exclude='build_deb.sh' --exclude='sync.sh' --exclude='.gemini' --exclude='metadata' --exclude='libtuxdriver' ./ "$INSTALL_DIR/"
+rsync -av --exclude='debian' --exclude='.git' --exclude='lv_micropython' --exclude='*.deb' --exclude='build_deb.sh' --exclude='sync.sh' --exclude='.gemini' --exclude='metadata' ./ "$INSTALL_DIR/"
 
 echo "Copying packaging metadata from debian/..."
 MAINTAINER=$(grep "^Maintainer:" debian/control | head -1 | cut -d' ' -f2-)
