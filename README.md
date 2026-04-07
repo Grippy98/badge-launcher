@@ -324,9 +324,8 @@ mv template_app_app.py myapp_app.py
 ```
 
 **See also:**
-- [FOLDER_APPS_GUIDE.md](FOLDER_APPS_GUIDE.md) - Complete guide to folder-based apps
+- [FOLDER_APPS_GUIDE.md](docs/FOLDER_APPS_GUIDE.md) - Complete guide to folder-based apps
 - [applications/README.md](applications/README.md) - Detailed app development docs
-- [APP_STORE.md](APP_STORE.md) - App store vision and distribution
 - [applications/apps/chiptunez/](applications/apps/chiptunez/) - Working example
 
 ## App Store
@@ -387,8 +386,6 @@ self.manifest_url = "https://raw.githubusercontent.com/YOUR_ORG/badge-app-store/
 ```
 
 **Documentation:**
-- [APP_STORE_SETUP.md](APP_STORE_SETUP.md) - Complete setup and management guide
-- [APP_SUBMISSION_GUIDE.md](APP_SUBMISSION_GUIDE.md) - Quick guide for app developers
 - Learn about store architecture, app submission, and best practices
 
 **Technical Details:**

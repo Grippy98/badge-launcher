@@ -7,10 +7,9 @@
 all: img2bin
 
 # Image conversion tool (required for Photos app)
-img2bin: tools/img2bin.c tools/stb_image.h tools/stb_image_resize2.h
-	@echo "Building img2bin..."
-	gcc -o img2bin tools/img2bin.c -lm -O2
-	@echo "✓ img2bin built successfully"
+img2bin:
+	@echo "img2bin build from source is currently disabled because tools/img2bin.c is untracked."
+	@echo "Relying on the pre-compiled binary instead."
 
 # Clean built binaries
 clean:
