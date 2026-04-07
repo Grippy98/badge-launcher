@@ -45,26 +45,3 @@ For convenience, you can use the helper script:
 # From the badge-slop root directory
 ./scripts/set_profile_image.sh /path/to/your/photo.jpg
 ```
-
-## Changing Images
-
-To use a different image:
-
-```bash
-# Remove old images
-rm *
-
-# Add new image
-cp /path/to/new_photo.jpg .
-```
-
-## Removing Profile Image
-
-To go back to default logos:
-
-```bash
-# Remove all images from this directory
-rm *
-```
-
-For more information, see: [PROFILE_IMAGE.md](../PROFILE_IMAGE.md)
