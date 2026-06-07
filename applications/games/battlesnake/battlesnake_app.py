@@ -1,12 +1,12 @@
 """Battlesnake front-end for the Badge Launcher.
 
-This first pass keeps the full game loop local to the launcher so it can run
-immediately on BeagleBadge. The UI and board model are structured so a later
-revision can swap the move-selection logic for a BadgeSnake backend.
+This UI renders a host-published JSON state snapshot and sends simple control
+commands back to the host simulator. That keeps the launcher focused on
+presentation while BadgeSnake owns the game loop.
 """
 
+import json
 import lvgl as lv
-import random
 import sys
 import time
 
@@ -17,12 +17,11 @@ from core import app
 
 
 class BattlesnakeApp(app.App):
+    STATE_PATH = "/tmp/badgesnake/state.json"
+    COMMAND_PATH = "/tmp/badgesnake/command.json"
     BOARD_SIZE = 11
     HEADER_HEIGHT = 54
     FOOTER_HEIGHT = 40
-    DEFAULT_STEP_MS = 900
-    MIN_STEP_MS = 250
-    MAX_STEP_MS = 1800
 
     def __init__(self):
         super().__init__("Battlesnake")
@@ -35,18 +34,14 @@ class BattlesnakeApp(app.App):
         self.timer = None
         self.current_key = 0
         self.key_state = lv.INDEV_STATE.RELEASED
-        self.last_tick = 0
-        self.step_ms = self.DEFAULT_STEP_MS
         self.cell_size = 20
         self.board_px = 220
         self.board_origin_x = 0
         self.board_origin_y = 0
         self.cell_objs = []
-        self.snakes = []
-        self.food = None
-        self.turn = 0
-        self.paused = False
-        self.winner_text = ""
+        self.snapshot = None
+        self.last_snapshot_raw = ""
+        self.command_seq = 0
 
     def enter(self, on_exit=None):
         self.on_exit_cb = on_exit
@@ -60,10 +55,11 @@ class BattlesnakeApp(app.App):
 
         self._configure_input_focus()
         self._build_layout()
-        self.reset_match()
+        self.update_labels()
+        self.render_board()
+        self.render_banner()
 
-        self.last_tick = time.ticks_ms()
-        self.timer = lv.timer_create(self.game_loop, 100, None)
+        self.timer = lv.timer_create(self.refresh_loop, 100, None)
 
     def _configure_input_focus(self):
         import input
@@ -139,38 +135,6 @@ class BattlesnakeApp(app.App):
                 row_objs.append(obj)
             self.cell_objs.append(row_objs)
 
-    def reset_match(self):
-        self.turn = 0
-        self.paused = False
-        self.winner_text = ""
-        self.step_ms = self.DEFAULT_STEP_MS
-        self.banner_label.add_flag(lv.obj.FLAG.HIDDEN)
-
-        self.snakes = [
-            {
-                "name": "ALPHA",
-                "body": [(2, 5), (1, 5), (0, 5)],
-                "dir": (1, 0),
-                "health": 100,
-                "alive": True,
-                "score": 0,
-                "bias": [(0, -1), (0, 1)],
-            },
-            {
-                "name": "BETA",
-                "body": [(8, 5), (9, 5), (10, 5)],
-                "dir": (-1, 0),
-                "health": 100,
-                "alive": True,
-                "score": 0,
-                "bias": [(0, 1), (0, -1)],
-            },
-        ]
-
-        self.spawn_food()
-        self.update_labels()
-        self.render_board()
-
     def on_key_event(self, e):
         self.current_key = e.get_key()
         self.key_state = lv.INDEV_STATE.PRESSED
@@ -197,247 +161,115 @@ class BattlesnakeApp(app.App):
             return
 
         if key == lv.KEY.ENTER:
-            self.paused = not self.paused
-            self.update_labels()
-            self.render_banner()
+            self.write_command("pause_toggle")
             return
 
         if key == lv.KEY.UP or key == 11:
-            self.reset_match()
+            self.write_command("reset")
             return
 
         if key == lv.KEY.LEFT or key == 20:
-            self.step_ms = min(self.MAX_STEP_MS, self.step_ms + 150)
-            self.update_labels()
+            self.write_command("slower")
             return
 
         if key == lv.KEY.RIGHT or key == 19:
-            self.step_ms = max(self.MIN_STEP_MS, self.step_ms - 150)
-            self.update_labels()
+            self.write_command("faster")
 
-    def game_loop(self, _timer):
+    def refresh_loop(self, _timer):
         self.poll_input()
         if not self.screen:
             return
 
-        now = time.ticks_ms()
-        if time.ticks_diff(now, self.last_tick) < self.step_ms:
-            return
-        self.last_tick = now
-
-        if self.paused or self.winner_text:
-            return
-
-        self.advance_turn()
-
-    def advance_turn(self):
-        self.turn += 1
-        decisions = []
-        occupied = {}
-        ate_food = False
-
-        for snake in self.snakes:
-            if not snake["alive"]:
-                continue
-            for segment in snake["body"]:
-                occupied[segment] = snake["name"]
-
-        for snake in self.snakes:
-            if not snake["alive"]:
-                decisions.append(None)
-                continue
-            decisions.append(self.choose_move(snake, occupied))
-
-        next_heads = []
-        for index, snake in enumerate(self.snakes):
-            if not snake["alive"]:
-                next_heads.append(None)
-                continue
-            dx, dy = decisions[index]
-            head_x, head_y = snake["body"][0]
-            next_heads.append((head_x + dx, head_y + dy))
-
-        eliminations = set()
-        head_counts = {}
-
-        for head in next_heads:
-            if head is None:
-                continue
-            head_counts[head] = head_counts.get(head, 0) + 1
-
-        for index, snake in enumerate(self.snakes):
-            if not snake["alive"]:
-                continue
-
-            head = next_heads[index]
-            if head_counts.get(head, 0) > 1:
-                eliminations.add(index)
-                continue
-
-            x, y = head
-            if x < 0 or x >= self.BOARD_SIZE or y < 0 or y >= self.BOARD_SIZE:
-                eliminations.add(index)
-                continue
-
-            occupied_by = occupied.get(head)
-            tail = snake["body"][-1]
-            if occupied_by and head != tail:
-                eliminations.add(index)
-
-        for index, snake in enumerate(self.snakes):
-            if not snake["alive"]:
-                continue
-
-            if index in eliminations:
-                snake["alive"] = False
-                continue
-
-            head = next_heads[index]
-            snake["body"].insert(0, head)
-            snake["dir"] = decisions[index]
-            snake["health"] -= 1
-
-            if head == self.food:
-                snake["health"] = 100
-                snake["score"] += 1
-                ate_food = True
-                self._beep(40, 1500)
-            else:
-                snake["body"].pop()
-
-            if snake["health"] <= 0:
-                snake["alive"] = False
-
-        if ate_food:
-            self.spawn_food()
-
-        self.finish_match_if_needed()
+        self.load_snapshot()
         self.update_labels()
         self.render_board()
         self.render_banner()
 
-    def choose_move(self, snake, occupied):
-        head_x, head_y = snake["body"][0]
-        current_dir = snake["dir"]
-        opposite = (-current_dir[0], -current_dir[1])
-        candidates = [
-            current_dir,
-            (1, 0),
-            (-1, 0),
-            (0, 1),
-            (0, -1),
-        ]
-
-        ranked = []
-        for move in candidates:
-            if move == opposite:
-                continue
-            next_pos = (head_x + move[0], head_y + move[1])
-            safe = self.is_safe_target(next_pos, occupied, snake)
-            distance = self.distance_to_food(next_pos)
-            bias_penalty = self.bias_penalty(move, snake["bias"])
-            ranked.append((0 if safe else 1, distance, bias_penalty, random.getrandbits(4), move))
-
-        ranked.sort()
-        for entry in ranked:
-            if entry[0] == 0:
-                return entry[4]
-
-        return current_dir
-
-    def is_safe_target(self, pos, occupied, snake):
-        x, y = pos
-        if x < 0 or x >= self.BOARD_SIZE or y < 0 or y >= self.BOARD_SIZE:
-            return False
-
-        occupant = occupied.get(pos)
-        if not occupant:
-            return True
-
-        return pos == snake["body"][-1]
-
-    def distance_to_food(self, pos):
-        return abs(pos[0] - self.food[0]) + abs(pos[1] - self.food[1])
-
-    def bias_penalty(self, move, bias_moves):
-        if move == bias_moves[0]:
-            return 0
-        if move == bias_moves[1]:
-            return 1
-        return 2
-
-    def spawn_food(self):
-        occupied = {}
-        for snake in self.snakes:
-            if not snake["alive"]:
-                continue
-            for segment in snake["body"]:
-                occupied[segment] = True
-
-        free_cells = []
-        for y in range(self.BOARD_SIZE):
-            for x in range(self.BOARD_SIZE):
-                if (x, y) not in occupied:
-                    free_cells.append((x, y))
-
-        if free_cells:
-            self.food = free_cells[random.getrandbits(16) % len(free_cells)]
-        else:
-            self.food = None
-
-    def finish_match_if_needed(self):
-        alive = []
-        for snake in self.snakes:
-            if snake["alive"]:
-                alive.append(snake)
-
-        if len(alive) > 1 and self.food is not None:
+    def load_snapshot(self):
+        try:
+            with open(self.STATE_PATH, "r") as handle:
+                raw = handle.read()
+        except Exception:
+            self.snapshot = None
+            self.last_snapshot_raw = ""
             return
 
-        if len(alive) == 1:
-            self.winner_text = alive[0]["name"] + " wins"
-            self._beep(120, 1000)
-        elif len(alive) == 0:
-            self.winner_text = "Draw"
-            self._beep(180, 500)
-        else:
-            leader = self.leading_snake()
-            self.winner_text = leader["name"] + " survives"
-            self._beep(120, 1000)
+        if raw == self.last_snapshot_raw:
+            return
+
+        try:
+            self.snapshot = json.loads(raw)
+            self.last_snapshot_raw = raw
+        except Exception:
+            self.snapshot = None
+            self.last_snapshot_raw = ""
+
+    def write_command(self, command):
+        self.command_seq += 1
+        payload = '{"seq":%d,"command":"%s"}\n' % (self.command_seq, command)
+        try:
+            with open(self.COMMAND_PATH, "w") as handle:
+                handle.write(payload)
+        except Exception:
+            pass
+
+    def snapshot_snakes(self):
+        if not self.snapshot:
+            return []
+        snakes = self.snapshot.get("snakes", [])
+        if snakes:
+            return snakes
+        return []
 
     def leading_snake(self):
-        best = self.snakes[0]
-        for snake in self.snakes[1:]:
-            if snake["score"] > best["score"]:
+        snakes = self.snapshot_snakes()
+        if not snakes:
+            return None
+
+        best = snakes[0]
+        for snake in snakes[1:]:
+            if snake.get("score", 0) > best.get("score", 0):
                 best = snake
-            elif snake["score"] == best["score"] and len(snake["body"]) > len(best["body"]):
+                continue
+            if snake.get("score", 0) == best.get("score", 0) and snake.get("length", 0) > best.get("length", 0):
                 best = snake
         return best
 
     def update_labels(self):
+        snakes = self.snapshot_snakes()
+        if len(snakes) < 2:
+            self.status_label.set_text("Waiting for backend")
+            self.turn_label.set_text("BOOT")
+            return
+
+        alpha = snakes[0]
+        beta = snakes[1]
         lead = self.leading_snake()
-        alpha = self.snakes[0]
-        beta = self.snakes[1]
-        mode = "PAUSED" if self.paused else "LIVE"
-        if self.winner_text:
-            mode = "DONE"
+        mode = self.snapshot.get("mode", "LIVE")
+        turn = self.snapshot.get("turn", 0)
+        step_ms = self.snapshot.get("step_ms", 0)
 
         self.status_label.set_text(
             "A H:%d L:%d S:%d\nB H:%d L:%d S:%d" % (
-                alpha["health"] if alpha["alive"] else 0,
-                len(alpha["body"]),
-                alpha["score"],
-                beta["health"] if beta["alive"] else 0,
-                len(beta["body"]),
-                beta["score"],
+                alpha.get("health", 0),
+                alpha.get("length", 0),
+                alpha.get("score", 0),
+                beta.get("health", 0),
+                beta.get("length", 0),
+                beta.get("score", 0),
             )
         )
+
+        lead_name = "?"
+        if lead:
+            lead_name = lead.get("name", "?")
+
         self.turn_label.set_text(
             "%s\nT:%d\n%0.1fs\nLead:%s" % (
                 mode,
-                self.turn,
-                self.step_ms / 1000.0,
-                lead["name"],
+                turn,
+                step_ms / 1000.0,
+                lead_name,
             )
         )
 
@@ -446,14 +278,19 @@ class BattlesnakeApp(app.App):
             for col in range(self.BOARD_SIZE):
                 self.cell_objs[row][col].set_style_bg_color(lv.color_white(), 0)
 
-        if self.food is not None:
-            self._paint_cell(self.food, lv.color_black())
+        if not self.snapshot:
+            return
 
-        for index, snake in enumerate(self.snakes):
-            if not snake["alive"] and not snake["body"]:
-                continue
+        food = self.snapshot.get("food")
+        if food:
+            self._paint_cell(food, lv.color_black())
 
-            for segment_index, segment in enumerate(snake["body"]):
+        snakes = self.snapshot_snakes()
+        for index in range(len(snakes)):
+            snake = snakes[index]
+            body = snake.get("body", [])
+            for segment_index in range(len(body)):
+                segment = body[segment_index]
                 if not self._segment_on_board(segment):
                     continue
                 if index == 0:
@@ -463,12 +300,20 @@ class BattlesnakeApp(app.App):
                 self._paint_cell(segment, color)
 
     def render_banner(self):
-        if self.winner_text:
-            self.banner_label.set_text(self.winner_text + "\nUP reset")
+        if not self.snapshot:
+            self.banner_label.set_text("Waiting for backend")
             self.banner_label.remove_flag(lv.obj.FLAG.HIDDEN)
             return
 
-        if self.paused:
+        winner_text = self.snapshot.get("winner_text", "")
+        mode = self.snapshot.get("mode", "LIVE")
+
+        if winner_text:
+            self.banner_label.set_text(winner_text + "\nUP reset")
+            self.banner_label.remove_flag(lv.obj.FLAG.HIDDEN)
+            return
+
+        if mode == "PAUSED":
             self.banner_label.set_text("Paused")
             self.banner_label.remove_flag(lv.obj.FLAG.HIDDEN)
             return
@@ -476,19 +321,16 @@ class BattlesnakeApp(app.App):
         self.banner_label.add_flag(lv.obj.FLAG.HIDDEN)
 
     def _segment_on_board(self, segment):
-        return 0 <= segment[0] < self.BOARD_SIZE and 0 <= segment[1] < self.BOARD_SIZE
+        x = segment.get("x", -1)
+        y = segment.get("y", -1)
+        return x >= 0 and x < self.BOARD_SIZE and y >= 0 and y < self.BOARD_SIZE
 
     def _paint_cell(self, coord, color):
-        x, y = coord
+        x = coord.get("x", -1)
+        y = coord.get("y", -1)
+        if x < 0 or x >= self.BOARD_SIZE or y < 0 or y >= self.BOARD_SIZE:
+            return
         self.cell_objs[y][x].set_style_bg_color(color, 0)
-
-    def _beep(self, duration_ms, freq):
-        try:
-            import sound
-
-            sound.beep(duration_ms, freq)
-        except Exception:
-            pass
 
     def exit(self):
         if self.timer:
