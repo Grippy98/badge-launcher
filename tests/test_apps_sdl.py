@@ -10,6 +10,8 @@ Usage:
 import sys
 import os
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 # Mock modules before importing apps
 class MockLVGL:
     """Mock LVGL module for testing."""
@@ -113,8 +115,12 @@ sys.modules['sound'] = MockSound()
 sys.modules['config'] = MockConfig()
 
 # Add paths
-if "core" not in sys.path: sys.path.append("core")
-if "applications" not in sys.path: sys.path.append("applications")
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+if os.path.join(ROOT_DIR, "core") not in sys.path:
+    sys.path.append(os.path.join(ROOT_DIR, "core"))
+if os.path.join(ROOT_DIR, "applications") not in sys.path:
+    sys.path.append(os.path.join(ROOT_DIR, "applications"))
 
 # Test app imports
 print("Testing app imports...\n")
@@ -123,6 +129,7 @@ test_apps = [
     ("Snake", "games.snake_app", "SnakeApp"),
     ("Brick Breaker", "games.brick_app", "BrickApp"),
     ("RGB Test", "apps.rgb_test_app", "RGBTestApp"),
+    ("IIO Sensors", "demos.sensor_visualizer_app", "SensorVisualizerApp"),
     ("Badge Mode", "badge_mode_app", "BadgeModeApp"),
     ("About", "about_app", "AboutApp"),
     ("Reboot", "settings.reboot", "RebootApp"),

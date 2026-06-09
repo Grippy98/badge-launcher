@@ -16,6 +16,8 @@ import sys
 import os
 import time
 
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+
 # ====================
 # Mock LVGL Module
 # ====================
@@ -276,8 +278,12 @@ time.ticks_ms = MockTime.ticks_ms
 time.ticks_diff = MockTime.ticks_diff
 
 # Add paths
-if "core" not in sys.path: sys.path.append("core")
-if "applications" not in sys.path: sys.path.append("applications")
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+if os.path.join(ROOT_DIR, "core") not in sys.path:
+    sys.path.append(os.path.join(ROOT_DIR, "core"))
+if os.path.join(ROOT_DIR, "applications") not in sys.path:
+    sys.path.append(os.path.join(ROOT_DIR, "applications"))
 
 # ====================
 # Test Suite
