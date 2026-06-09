@@ -38,6 +38,10 @@ class BattlesnakeApp(app.App):
     BOARD_SIZE = 11
     HEADER_HEIGHT = 54
     FOOTER_HEIGHT = 40
+    SIDE_MARGIN = 8
+    COLUMN_GAP = 12
+    INFO_MIN_WIDTH = 128
+    INFO_MAX_WIDTH = 168
 
     def __init__(self):
         super().__init__("Battlesnake")
@@ -54,6 +58,9 @@ class BattlesnakeApp(app.App):
         self.board_px = 220
         self.board_origin_x = 0
         self.board_origin_y = 0
+        self.info_origin_x = 0
+        self.info_origin_y = 0
+        self.info_width = 0
         self.cell_objs = []
         self.snapshot = None
         self.last_snapshot_raw = ""
@@ -96,11 +103,21 @@ class BattlesnakeApp(app.App):
         height = disp.get_vertical_resolution()
 
         usable_height = height - self.HEADER_HEIGHT - self.FOOTER_HEIGHT
-        self.board_px = min(width - 24, usable_height - 8)
+        desired_info_width = width // 3
+        if desired_info_width < self.INFO_MIN_WIDTH:
+            desired_info_width = self.INFO_MIN_WIDTH
+        if desired_info_width > self.INFO_MAX_WIDTH:
+            desired_info_width = self.INFO_MAX_WIDTH
+
+        available_board_width = width - (self.SIDE_MARGIN * 2) - self.COLUMN_GAP - desired_info_width
+        self.board_px = min(available_board_width, usable_height - 8)
         self.cell_size = self.board_px // self.BOARD_SIZE
         self.board_px = self.cell_size * self.BOARD_SIZE
-        self.board_origin_x = (width - self.board_px) // 2
+        self.board_origin_x = self.SIDE_MARGIN
         self.board_origin_y = self.HEADER_HEIGHT + ((usable_height - self.board_px) // 2)
+        self.info_origin_x = self.board_origin_x + self.board_px + self.COLUMN_GAP
+        self.info_origin_y = self.board_origin_y
+        self.info_width = width - self.info_origin_x - self.SIDE_MARGIN
 
         title = lv.label(self.screen)
         title.set_text("BATTLESNAKE")
@@ -109,11 +126,13 @@ class BattlesnakeApp(app.App):
 
         self.status_label = lv.label(self.screen)
         self.status_label.set_style_text_color(lv.color_black(), 0)
-        self.status_label.align(lv.ALIGN.TOP_LEFT, 8, 22)
+        self.status_label.set_width(self.info_width)
+        self.status_label.set_pos(self.info_origin_x, self.info_origin_y)
 
         self.turn_label = lv.label(self.screen)
         self.turn_label.set_style_text_color(lv.color_black(), 0)
-        self.turn_label.align(lv.ALIGN.TOP_RIGHT, -8, 22)
+        self.turn_label.set_width(self.info_width)
+        self.turn_label.set_pos(self.info_origin_x, self.info_origin_y + 42)
 
         self.board_cont = lv.obj(self.screen)
         self.board_cont.set_pos(self.board_origin_x, self.board_origin_y)
@@ -136,7 +155,8 @@ class BattlesnakeApp(app.App):
         self.banner_label = lv.label(self.screen)
         self.banner_label.set_style_text_color(lv.color_black(), 0)
         self.banner_label.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
-        self.banner_label.center()
+        self.banner_label.set_width(self.info_width)
+        self.banner_label.set_pos(self.info_origin_x, self.info_origin_y + 118)
         self.banner_label.add_flag(lv.obj.FLAG.HIDDEN)
 
     def _build_board_cells(self):
@@ -338,13 +358,15 @@ class BattlesnakeApp(app.App):
         for row in range(self.BOARD_SIZE):
             for col in range(self.BOARD_SIZE):
                 self.cell_objs[row][col].set_style_bg_color(lv.color_white(), 0)
+                self.cell_objs[row][col].set_style_border_width(1, 0)
+                self.cell_objs[row][col].set_style_border_color(lv.color_black(), 0)
 
         if not self.snapshot:
             return
 
         foods = self.foods()
         for food in foods:
-            self._paint_cell(food, lv.color_black())
+            self._paint_cell(food, lv.color_black(), 1)
 
         snakes = self.snapshot_snakes()
         for index in range(len(snakes)):
@@ -355,10 +377,20 @@ class BattlesnakeApp(app.App):
                 if not self._segment_on_board(segment):
                     continue
                 if index == 0:
-                    color = lv.color_black() if segment_index == 0 else lv.color_make(96, 96, 96)
+                    if segment_index == 0:
+                        fill_color = lv.color_white()
+                        border_color = lv.color_black()
+                        border_width = max(4, self.cell_size // 3)
+                    else:
+                        fill_color = lv.color_make(72, 72, 72)
+                        border_color = lv.color_black()
+                        border_width = 1
                 else:
-                    color = lv.color_make(160, 160, 160) if segment_index == 0 else lv.color_make(208, 208, 208)
-                self._paint_cell(segment, color)
+                    # Use a darker ring so snake 2 remains visible on e-ink.
+                    fill_color = lv.color_white()
+                    border_color = lv.color_make(96, 96, 96) if segment_index == 0 else lv.color_make(120, 120, 120)
+                    border_width = max(5, self.cell_size // 3) if segment_index == 0 else max(4, self.cell_size // 4)
+                self._paint_cell(segment, fill_color, border_width, border_color)
 
     def render_banner(self):
         if not self.snapshot:
@@ -395,12 +427,16 @@ class BattlesnakeApp(app.App):
         y = segment.get("y", -1)
         return x >= 0 and x < self.BOARD_SIZE and y >= 0 and y < self.BOARD_SIZE
 
-    def _paint_cell(self, coord, color):
+    def _paint_cell(self, coord, color, border_width=1, border_color=None):
         x = coord.get("x", -1)
         y = coord.get("y", -1)
         if x < 0 or x >= self.BOARD_SIZE or y < 0 or y >= self.BOARD_SIZE:
             return
         self.cell_objs[y][x].set_style_bg_color(color, 0)
+        self.cell_objs[y][x].set_style_border_width(border_width, 0)
+        if border_color is None:
+            border_color = lv.color_black()
+        self.cell_objs[y][x].set_style_border_color(border_color, 0)
 
     def exit(self):
         if self.timer:
