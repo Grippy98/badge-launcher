@@ -7,6 +7,7 @@ presentation while BadgeSnake owns the game loop.
 
 import json
 import lvgl as lv
+import os
 import sys
 import time
 
@@ -16,9 +17,24 @@ if "core" not in sys.path:
 from core import app
 
 
+def _ticks_ms():
+    try:
+        return time.ticks_ms()
+    except AttributeError:
+        return int(time.time() * 1000)
+
+
+def _ticks_diff(now_ms, last_ms):
+    try:
+        return time.ticks_diff(now_ms, last_ms)
+    except AttributeError:
+        return now_ms - last_ms
+
+
 class BattlesnakeApp(app.App):
     STATE_PATH = "/tmp/badgesnake/state.json"
     COMMAND_PATH = "/tmp/badgesnake/command.json"
+    BACKEND_START_SCRIPT = "/opt/badge_launcher/scripts/run_battlesnake_backend.sh"
     BOARD_SIZE = 11
     HEADER_HEIGHT = 54
     FOOTER_HEIGHT = 40
@@ -42,9 +58,12 @@ class BattlesnakeApp(app.App):
         self.snapshot = None
         self.last_snapshot_raw = ""
         self.command_seq = 0
+        self.backend_started = False
+        self.last_backend_start_ms = 0
 
     def enter(self, on_exit=None):
         self.on_exit_cb = on_exit
+        self.ensure_backend(force=True)
         self.screen = lv.obj()
         self.screen.set_style_bg_color(lv.color_white(), 0)
         self.screen.set_style_bg_opa(lv.OPA.COVER, 0)
@@ -180,10 +199,30 @@ class BattlesnakeApp(app.App):
         if not self.screen:
             return
 
+        self.ensure_backend()
         self.load_snapshot()
         self.update_labels()
         self.render_board()
         self.render_banner()
+
+    def ensure_backend(self, force=False):
+        now_ms = _ticks_ms()
+        if not force and _ticks_diff(now_ms, self.last_backend_start_ms) < 3000:
+            return
+
+        if not force and self.snapshot and len(self.snapshot_snakes()) >= 2:
+            return
+
+        self.last_backend_start_ms = now_ms
+
+        try:
+            os.stat(self.BACKEND_START_SCRIPT)
+        except Exception:
+            return
+
+        result = os.system("%s >/tmp/badgesnake-launch.log 2>&1 &" % self.BACKEND_START_SCRIPT)
+        if result == 0:
+            self.backend_started = True
 
     def load_snapshot(self):
         try:
@@ -249,7 +288,10 @@ class BattlesnakeApp(app.App):
     def update_labels(self):
         snakes = self.snapshot_snakes()
         if len(snakes) < 2:
-            self.status_label.set_text("Waiting for backend")
+            if self.backend_started:
+                self.status_label.set_text("Starting backend")
+            else:
+                self.status_label.set_text("Waiting for backend")
             self.turn_label.set_text("BOOT")
             return
 
@@ -320,7 +362,10 @@ class BattlesnakeApp(app.App):
 
     def render_banner(self):
         if not self.snapshot:
-            self.banner_label.set_text("Waiting for backend")
+            if self.backend_started:
+                self.banner_label.set_text("Starting backend")
+            else:
+                self.banner_label.set_text("Waiting for backend")
             self.banner_label.remove_flag(lv.obj.FLAG.HIDDEN)
             return
 
