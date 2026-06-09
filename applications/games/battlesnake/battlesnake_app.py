@@ -235,6 +235,17 @@ class BattlesnakeApp(app.App):
                 best = snake
         return best
 
+    def foods(self):
+        if not self.snapshot:
+            return []
+        foods = self.snapshot.get("foods", [])
+        if foods:
+            return foods
+        food = self.snapshot.get("food")
+        if food:
+            return [food]
+        return []
+
     def update_labels(self):
         snakes = self.snapshot_snakes()
         if len(snakes) < 2:
@@ -248,12 +259,18 @@ class BattlesnakeApp(app.App):
         mode = self.snapshot.get("mode", "LIVE")
         turn = self.snapshot.get("turn", 0)
         step_ms = self.snapshot.get("step_ms", 0)
+        title = self.snapshot.get("title", "")
+        match_number = self.snapshot.get("match_number", 0)
 
         self.status_label.set_text(
-            "A H:%d L:%d S:%d\nB H:%d L:%d S:%d" % (
+            "%s %s %d/%d/%d\n%s %s %d/%d/%d" % (
+                alpha.get("name", "A")[:5],
+                alpha.get("archetype", "")[:5],
                 alpha.get("health", 0),
                 alpha.get("length", 0),
                 alpha.get("score", 0),
+                beta.get("name", "B")[:5],
+                beta.get("archetype", "")[:5],
                 beta.get("health", 0),
                 beta.get("length", 0),
                 beta.get("score", 0),
@@ -265,8 +282,10 @@ class BattlesnakeApp(app.App):
             lead_name = lead.get("name", "?")
 
         self.turn_label.set_text(
-            "%s\nT:%d\n%0.1fs\nLead:%s" % (
+            "#%d %s\n%s\nT:%d %0.1fs\nLead:%s" % (
+                match_number,
                 mode,
+                title[:14],
                 turn,
                 step_ms / 1000.0,
                 lead_name,
@@ -281,8 +300,8 @@ class BattlesnakeApp(app.App):
         if not self.snapshot:
             return
 
-        food = self.snapshot.get("food")
-        if food:
+        foods = self.foods()
+        for food in foods:
             self._paint_cell(food, lv.color_black())
 
         snakes = self.snapshot_snakes()
@@ -315,6 +334,12 @@ class BattlesnakeApp(app.App):
 
         if mode == "PAUSED":
             self.banner_label.set_text("Paused")
+            self.banner_label.remove_flag(lv.obj.FLAG.HIDDEN)
+            return
+
+        event_text = self.snapshot.get("event_text", "")
+        if event_text:
+            self.banner_label.set_text(event_text[:28])
             self.banner_label.remove_flag(lv.obj.FLAG.HIDDEN)
             return
 
