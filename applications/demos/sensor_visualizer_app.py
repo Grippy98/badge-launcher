@@ -16,8 +16,11 @@ from core import app
 IIO_ROOT = "/sys/bus/iio/devices"
 ADC_LIGHT_CHANNEL = 2  # k3-am62l3-badge.dts: V23 is the on-board light sensor.
 ADC_MAX_RAW = 4095.0
+ADC_BAR_MAX_RAW = 256.0
 ACCEL_FULL_SCALE_G = 2.0
-REFRESH_MS = 900
+OPT3001_BAR_MAX_LUX = 2000.0
+BAR_SLOTS = 10
+REFRESH_MS = 150
 SCAN_INTERVAL_MS = 4000
 QWIIC_BUSES = (1, 3)
 OPT3001_ADDRESSES = (0x44, 0x45)
@@ -157,28 +160,32 @@ class SensorVisualizerApp(app.App):
 
         self.rule_top = self.make_rule(8, 36, width - 16)
 
-        self.light_title = self.make_label("ON-BOARD LIGHT", 10, 46, "font_montserrat_16")
-        self.light_value = self.make_label("--", 10, 68, "font_montserrat_24")
-        self.light_detail = self.make_label("", 10, 96, "font_montserrat_14")
-        self.light_bar_bg = self.make_bar(220, 74, 160, 14)
-        self.light_bar_fill = self.make_bar_fill(self.light_bar_bg)
+        self.light_title = self.make_label("ON-BOARD LIGHT", 10, 48, "font_montserrat_16")
+        self.light_value = self.make_label("--", 10, 70, "font_montserrat_24")
+        self.light_detail = self.make_label("", 94, 76, "font_montserrat_16")
+        self.light_bar = self.make_segment_bar(246, 74)
 
         self.rule_mid = self.make_rule(8, 122, width - 16)
 
-        self.accel_title = self.make_label("ON-BOARD ACCEL", 10, 132, "font_montserrat_16")
-        self.accel_name = self.make_label("", 10, 154, "font_montserrat_14")
-        self.accel_x = self.make_label("", 10, 176, "font_montserrat_16")
-        self.accel_y = self.make_label("", 10, 198, "font_montserrat_16")
-        self.accel_z = self.make_label("", 10, 220, "font_montserrat_16")
-        self.accel_mag = self.make_label("", 10, 240, "font_montserrat_14")
+        self.accel_title = self.make_label("ON-BOARD ACCEL", 10, 134, "font_montserrat_16")
+        self.accel_x_title = self.make_label("X", 18, 172, "font_montserrat_16")
+        self.accel_y_title = self.make_label("Y", 146, 172, "font_montserrat_16")
+        self.accel_z_title = self.make_label("Z", 274, 172, "font_montserrat_16")
+        self.accel_x = self.make_label("", 38, 168, "font_montserrat_24")
+        self.accel_y = self.make_label("", 166, 168, "font_montserrat_24")
+        self.accel_z = self.make_label("", 294, 168, "font_montserrat_24")
 
-        self.opt_rule = self.make_rule(8, 258, width - 16)
-        self.opt_title = self.make_label("QWIIC OPT3001", 10, 266, "font_montserrat_16")
-        self.opt_value = self.make_label("", 10, 286, "font_montserrat_14")
+        self.opt_rule = self.make_rule(8, 208, width - 16)
+        self.opt_title = self.make_label("QWIIC OPT3001", 10, 220, "font_montserrat_16")
+        self.opt_value = self.make_label("", 10, 242, "font_montserrat_24")
+        self.opt_detail = self.make_label("", 94, 248, "font_montserrat_16")
+        self.opt_bar = self.make_segment_bar(246, 246)
         self.opt_widgets = [
             self.opt_rule,
             self.opt_title,
             self.opt_value,
+            self.opt_detail,
+            self.opt_bar["container"],
         ]
         self.set_opt_visible(False)
 
@@ -200,26 +207,32 @@ class SensorVisualizerApp(app.App):
         rule.set_style_border_width(0, 0)
         return rule
 
-    def make_bar(self, x, y, width, height):
-        bar = lv.obj(self.screen)
-        bar.set_pos(x, y)
-        bar.set_size(width, height)
-        bar.set_style_bg_color(lv.color_white(), 0)
-        bar.set_style_bg_opa(lv.OPA.COVER, 0)
-        bar.set_style_border_color(lv.color_black(), 0)
-        bar.set_style_border_width(2, 0)
-        bar.set_style_radius(0, 0)
-        return bar
+    def make_segment_bar(self, x, y):
+        container = lv.obj(self.screen)
+        container.set_pos(x, y)
+        container.set_size(136, 16)
+        container.set_style_bg_color(lv.color_white(), 0)
+        container.set_style_bg_opa(lv.OPA.COVER, 0)
+        container.set_style_border_color(lv.color_black(), 0)
+        container.set_style_border_width(2, 0)
+        container.set_style_radius(0, 0)
+        container.set_style_pad_all(0, 0)
 
-    def make_bar_fill(self, parent):
-        fill = lv.obj(parent)
-        fill.set_pos(0, 0)
-        fill.set_size(0, 10)
-        fill.set_style_bg_color(lv.color_black(), 0)
-        fill.set_style_bg_opa(lv.OPA.COVER, 0)
-        fill.set_style_border_width(0, 0)
-        fill.set_style_radius(0, 0)
-        return fill
+        segments = []
+        for idx in range(BAR_SLOTS):
+            seg = lv.obj(container)
+            seg.set_pos(2 + (idx * 13), 2)
+            seg.set_size(11, 10)
+            seg.set_style_border_width(0, 0)
+            seg.set_style_radius(0, 0)
+            seg.set_style_bg_color(lv.color_white(), 0)
+            seg.set_style_bg_opa(lv.OPA.COVER, 0)
+            segments.append(seg)
+
+        return {
+            "container": container,
+            "segments": segments,
+        }
 
     def try_set_font(self, obj, font_name):
         try:
@@ -285,76 +298,91 @@ class SensorVisualizerApp(app.App):
     def render_light(self, light):
         if not light:
             self.set_cached_text("light_value", self.light_value, "not found")
-            self.set_cached_text("light_detail", self.light_detail, "ADC channel 2 unavailable")
-            self.set_bar_fill(0.0)
+            self.set_cached_text("light_detail", self.light_detail, "")
+            self.set_bar_fill("light_bar_fill", self.light_bar, 0.0)
             return
 
-        percent = int((light["raw"] / ADC_MAX_RAW) * 100)
-        mv_text = ""
-        if light["millivolts"] is not None:
-            mv_text = "  {:.0f} mV".format(light["millivolts"])
-
+        bar_fraction = _clamp(light["raw"] / ADC_BAR_MAX_RAW, 0.0, 1.0)
+        percent = int(bar_fraction * 100)
         self.set_cached_text(
             "light_value",
             self.light_value,
-            "raw {:4d}   {:3d}%".format(light["raw"], percent),
+            "{:3d}%".format(percent),
         )
         self.set_cached_text(
             "light_detail",
             self.light_detail,
-            "{} / in_voltage{}_raw{}".format(light["name"], ADC_LIGHT_CHANNEL, mv_text),
+            "raw {:4d}".format(light["raw"]),
         )
-        self.set_bar_fill(light["raw"] / ADC_MAX_RAW)
+        self.set_bar_fill("light_bar_fill", self.light_bar, bar_fraction)
 
     def render_accel(self, accel):
         if not accel:
-            self.set_cached_text("accel_name", self.accel_name, "accelerometer not found")
-            self.set_cached_text("accel_x", self.accel_x, "")
-            self.set_cached_text("accel_y", self.accel_y, "")
-            self.set_cached_text("accel_z", self.accel_z, "")
-            self.set_cached_text("accel_mag", self.accel_mag, "")
+            self.set_cached_text("accel_x", self.accel_x, "--")
+            self.set_cached_text("accel_y", self.accel_y, "--")
+            self.set_cached_text("accel_z", self.accel_z, "--")
             return
 
-        self.set_cached_text("accel_name", self.accel_name, accel["name"])
-        self.set_cached_text("accel_x", self.accel_x, "X  {:+.2f} g".format(accel["axes_g"]["X"]))
-        self.set_cached_text("accel_y", self.accel_y, "Y  {:+.2f} g".format(accel["axes_g"]["Y"]))
-        self.set_cached_text("accel_z", self.accel_z, "Z  {:+.2f} g".format(accel["axes_g"]["Z"]))
-        self.set_cached_text(
-            "accel_mag",
-            self.accel_mag,
-            "|g| {:.2f}   scale {:.6f}".format(accel["magnitude_g"], accel["scale"]),
-        )
+        self.set_cached_text("accel_x", self.accel_x, "{:+.2f}".format(accel["axes_g"]["X"]))
+        self.set_cached_text("accel_y", self.accel_y, "{:+.2f}".format(accel["axes_g"]["Y"]))
+        self.set_cached_text("accel_z", self.accel_z, "{:+.2f}".format(accel["axes_g"]["Z"]))
 
     def render_opt(self, opt_iio, probe):
         if opt_iio:
             self.set_opt_visible(True)
             self.set_cached_text("opt_title", self.opt_title, "QWIIC OPT3001")
             if opt_iio["lux"] is not None:
-                self.set_cached_text("opt_value", self.opt_value, "{:.2f} lux via IIO".format(opt_iio["lux"]))
+                bar_fraction = self.opt_lux_fraction(opt_iio["lux"])
+                percent = int(bar_fraction * 100)
+                self.set_cached_text("opt_value", self.opt_value, "{:3d}%".format(percent))
+                self.set_cached_text("opt_detail", self.opt_detail, "{:.1f} lux".format(opt_iio["lux"]))
+                self.set_bar_fill("opt_bar_fill", self.opt_bar, bar_fraction)
             else:
-                self.set_cached_text("opt_value", self.opt_value, "{} present via IIO".format(opt_iio["name"]))
+                self.set_cached_text("opt_value", self.opt_value, "live")
+                self.set_cached_text("opt_detail", self.opt_detail, "")
+                self.set_bar_fill("opt_bar_fill", self.opt_bar, 0.0)
             return
 
         if probe and probe.get("detected"):
             self.set_opt_visible(True)
-            self.set_cached_text("opt_title", self.opt_title, "QWIIC OPT3001 ON i2c-{}".format(probe["bus"]))
+            self.set_cached_text("opt_title", self.opt_title, "QWIIC OPT3001")
             if self.opt3001_driver_available:
-                detail = "Detected at 0x{:02x}; waiting for IIO node".format(probe["address"])
+                self.set_cached_text("opt_value", self.opt_value, "detected")
+                detail = "i2c-{} @ 0x{:02x}".format(probe["bus"], probe["address"])
             else:
-                detail = "Detected at 0x{:02x}; kernel has no IIO driver".format(probe["address"])
-            self.set_cached_text("opt_value", self.opt_value, detail)
+                self.set_cached_text("opt_value", self.opt_value, "detected")
+                detail = "i2c-{} @ 0x{:02x}".format(probe["bus"], probe["address"])
+            self.set_cached_text("opt_detail", self.opt_detail, detail)
+            self.set_bar_fill("opt_bar_fill", self.opt_bar, 0.0)
             return
 
         self.set_opt_visible(False)
 
-    def set_bar_fill(self, fraction):
+    def set_bar_fill(self, key, bar, fraction):
         fraction = _clamp(fraction, 0.0, 1.0)
-        bar_width = 156
-        fill_width = int(bar_width * fraction)
-        if self.render_cache.get("light_bar_fill") == fill_width:
+        filled = int((BAR_SLOTS * fraction) + 0.5)
+        if self.render_cache.get(key) == filled:
             return
-        self.light_bar_fill.set_size(fill_width, 10)
-        self.render_cache["light_bar_fill"] = fill_width
+        for idx, seg in enumerate(bar["segments"]):
+            color = lv.color_black() if idx < filled else lv.color_white()
+            seg.set_style_bg_color(color, 0)
+            try:
+                lv.obj.invalidate(seg)
+            except Exception:
+                pass
+        try:
+            lv.obj.invalidate(bar["container"])
+            lv.obj.invalidate(lv.scr_act())
+            lv.refr_now(None)
+        except Exception:
+            pass
+        self.render_cache[key] = filled
+
+    def opt_lux_fraction(self, lux):
+        lux = _clamp(lux, 0.0, OPT3001_BAR_MAX_LUX)
+        if lux <= 0.0:
+            return 0.0
+        return math.log10(lux + 1.0) / math.log10(OPT3001_BAR_MAX_LUX + 1.0)
 
     def list_iio_devices(self):
         devices = []
