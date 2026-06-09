@@ -62,6 +62,8 @@ class BattlesnakeApp(app.App):
         self.info_origin_y = 0
         self.info_width = 0
         self.cell_objs = []
+        self.food_marker_v = []
+        self.food_marker_h = []
         self.snapshot = None
         self.last_snapshot_raw = ""
         self.command_seq = 0
@@ -85,7 +87,7 @@ class BattlesnakeApp(app.App):
         self.render_board()
         self.render_banner()
 
-        self.timer = lv.timer_create(self.refresh_loop, 100, None)
+        self.timer = lv.timer_create(self.refresh_loop, 50, None)
 
     def _configure_input_focus(self):
         import input
@@ -161,8 +163,14 @@ class BattlesnakeApp(app.App):
 
     def _build_board_cells(self):
         self.cell_objs = []
+        self.food_marker_v = []
+        self.food_marker_h = []
+        marker_thickness = max(2, self.cell_size // 5)
+        marker_length = max(6, self.cell_size - max(6, self.cell_size // 3))
         for row in range(self.BOARD_SIZE):
             row_objs = []
+            row_v = []
+            row_h = []
             for col in range(self.BOARD_SIZE):
                 obj = lv.obj(self.board_cont)
                 obj.set_pos(col * self.cell_size, row * self.cell_size)
@@ -172,7 +180,26 @@ class BattlesnakeApp(app.App):
                 obj.set_style_border_color(lv.color_black(), 0)
                 obj.set_style_bg_color(lv.color_white(), 0)
                 row_objs.append(obj)
+                marker_v = lv.obj(obj)
+                marker_v.set_size(marker_thickness, marker_length)
+                marker_v.center()
+                marker_v.set_style_radius(0, 0)
+                marker_v.set_style_border_width(0, 0)
+                marker_v.set_style_bg_color(lv.color_black(), 0)
+                marker_v.add_flag(lv.obj.FLAG.HIDDEN)
+                row_v.append(marker_v)
+
+                marker_h = lv.obj(obj)
+                marker_h.set_size(marker_length, marker_thickness)
+                marker_h.center()
+                marker_h.set_style_radius(0, 0)
+                marker_h.set_style_border_width(0, 0)
+                marker_h.set_style_bg_color(lv.color_black(), 0)
+                marker_h.add_flag(lv.obj.FLAG.HIDDEN)
+                row_h.append(marker_h)
             self.cell_objs.append(row_objs)
+            self.food_marker_v.append(row_v)
+            self.food_marker_h.append(row_h)
 
     def on_key_event(self, e):
         self.current_key = e.get_key()
@@ -360,13 +387,15 @@ class BattlesnakeApp(app.App):
                 self.cell_objs[row][col].set_style_bg_color(lv.color_white(), 0)
                 self.cell_objs[row][col].set_style_border_width(1, 0)
                 self.cell_objs[row][col].set_style_border_color(lv.color_black(), 0)
+                self.food_marker_v[row][col].add_flag(lv.obj.FLAG.HIDDEN)
+                self.food_marker_h[row][col].add_flag(lv.obj.FLAG.HIDDEN)
 
         if not self.snapshot:
             return
 
         foods = self.foods()
         for food in foods:
-            self._paint_cell(food, lv.color_black(), 1)
+            self._paint_food(food)
 
         snakes = self.snapshot_snakes()
         for index in range(len(snakes)):
@@ -437,6 +466,17 @@ class BattlesnakeApp(app.App):
         if border_color is None:
             border_color = lv.color_black()
         self.cell_objs[y][x].set_style_border_color(border_color, 0)
+
+    def _paint_food(self, coord):
+        x = coord.get("x", -1)
+        y = coord.get("y", -1)
+        if x < 0 or x >= self.BOARD_SIZE or y < 0 or y >= self.BOARD_SIZE:
+            return
+        self.cell_objs[y][x].set_style_bg_color(lv.color_white(), 0)
+        self.cell_objs[y][x].set_style_border_width(max(2, self.cell_size // 8), 0)
+        self.cell_objs[y][x].set_style_border_color(lv.color_black(), 0)
+        self.food_marker_v[y][x].remove_flag(lv.obj.FLAG.HIDDEN)
+        self.food_marker_h[y][x].remove_flag(lv.obj.FLAG.HIDDEN)
 
     def exit(self):
         if self.timer:
