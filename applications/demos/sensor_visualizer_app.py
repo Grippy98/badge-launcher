@@ -21,6 +21,8 @@ ACCEL_FULL_SCALE_G = 2.0
 OPT3001_BAR_MAX_LUX = 2000.0
 BAR_SLOTS = 10
 REFRESH_MS = 150
+ACCEL_TARGET_SAMPLING_FREQUENCY = "104"
+OPT3001_TARGET_INT_TIME = "0.1"
 SCAN_INTERVAL_MS = 4000
 QWIIC_BUSES = (1, 3)
 OPT3001_ADDRESSES = (0x44, 0x45)
@@ -98,6 +100,10 @@ class SensorVisualizerApp(app.App):
         self.last_probe = None
         self.render_cache = {}
         self.opt3001_driver_available = _path_exists("/sys/bus/i2c/drivers/opt3001")
+        self.accel_path = None
+        self.accel_original_sampling_frequency = None
+        self.opt3001_path = None
+        self.opt3001_original_int_time = None
 
     def enter(self, on_exit=None):
         self.on_exit_cb = on_exit
@@ -124,6 +130,7 @@ class SensorVisualizerApp(app.App):
         self.timer = lv.timer_create(self.refresh, REFRESH_MS, None)
 
     def exit(self):
+        self.restore_runtime_tuning()
         if self.timer:
             self.timer.delete()
             self.timer = None
@@ -258,6 +265,7 @@ class SensorVisualizerApp(app.App):
             return
 
         devices = self.list_iio_devices()
+        self.ensure_runtime_tuning(devices)
         accel = self.read_accelerometer(devices)
         onboard_light = self.read_onboard_light(devices)
         opt_iio = self.read_opt3001_iio(devices)
@@ -273,6 +281,100 @@ class SensorVisualizerApp(app.App):
         self.render_light(onboard_light)
         self.render_accel(accel)
         self.render_opt(opt_iio, self.last_probe)
+
+    def ensure_runtime_tuning(self, devices):
+        accel = self.find_accelerometer_device(devices)
+        if accel:
+            self.tune_accelerometer(accel["path"])
+
+        opt = self.find_opt3001_device(devices)
+        if opt:
+            self.tune_opt3001(opt["path"])
+        elif self.opt3001_path:
+            self.restore_opt3001_tuning()
+
+    def restore_runtime_tuning(self):
+        self.restore_accelerometer_tuning()
+        self.restore_opt3001_tuning()
+
+    def tune_accelerometer(self, path):
+        sampling_path = path + "/sampling_frequency"
+        if not _path_exists(sampling_path):
+            return
+
+        if self.accel_path and self.accel_path != path:
+            self.restore_accelerometer_tuning()
+
+        if self.accel_original_sampling_frequency is None:
+            self.accel_original_sampling_frequency = _read_text(sampling_path)
+            self.accel_path = path
+
+        current = _read_text(sampling_path)
+        if current == ACCEL_TARGET_SAMPLING_FREQUENCY or current == (ACCEL_TARGET_SAMPLING_FREQUENCY + ".000000"):
+            return
+
+        _write_text(sampling_path, ACCEL_TARGET_SAMPLING_FREQUENCY + "\n")
+
+    def restore_accelerometer_tuning(self):
+        if not self.accel_path or self.accel_original_sampling_frequency is None:
+            self.accel_path = None
+            self.accel_original_sampling_frequency = None
+            return
+
+        sampling_path = self.accel_path + "/sampling_frequency"
+        if _path_exists(sampling_path):
+            _write_text(sampling_path, self.accel_original_sampling_frequency + "\n")
+
+        self.accel_path = None
+        self.accel_original_sampling_frequency = None
+
+    def tune_opt3001(self, path):
+        int_time_path = path + "/in_illuminance_integration_time"
+        if not _path_exists(int_time_path):
+            return
+
+        if self.opt3001_path and self.opt3001_path != path:
+            self.restore_opt3001_tuning()
+
+        if self.opt3001_original_int_time is None:
+            self.opt3001_original_int_time = _read_text(int_time_path)
+            self.opt3001_path = path
+
+        current = _read_text(int_time_path)
+        if current == OPT3001_TARGET_INT_TIME or current == (OPT3001_TARGET_INT_TIME + "00000"):
+            return
+
+        _write_text(int_time_path, OPT3001_TARGET_INT_TIME + "\n")
+
+    def restore_opt3001_tuning(self):
+        if not self.opt3001_path or self.opt3001_original_int_time is None:
+            self.opt3001_path = None
+            self.opt3001_original_int_time = None
+            return
+
+        int_time_path = self.opt3001_path + "/in_illuminance_integration_time"
+        if _path_exists(int_time_path):
+            _write_text(int_time_path, self.opt3001_original_int_time + "\n")
+
+        self.opt3001_path = None
+        self.opt3001_original_int_time = None
+
+    def find_accelerometer_device(self, devices):
+        for device in devices:
+            path = device["path"]
+            if _path_exists(path + "/in_accel_x_raw") and _path_exists(path + "/in_accel_y_raw"):
+                return device
+        return None
+
+    def find_opt3001_device(self, devices):
+        for device in devices:
+            path = device["path"]
+            name_lower = device["name"].lower()
+            if "opt3001" in name_lower:
+                return device
+            if _path_exists(path + "/in_illuminance_input") or _path_exists(path + "/in_illuminance_raw"):
+                return device
+        return None
 
     def handle_input(self):
         import input
@@ -463,32 +565,24 @@ class SensorVisualizerApp(app.App):
         return None
 
     def read_opt3001_iio(self, devices):
-        for device in devices:
-            path = device["path"]
-            name_lower = device["name"].lower()
-            has_opt_name = "opt3001" in name_lower
-            has_illuminance = (
-                _read_text(path + "/in_illuminance_input") is not None or
-                _read_text(path + "/in_illuminance_raw") is not None
-            )
-            if not has_opt_name and not has_illuminance:
-                continue
+        device = self.find_opt3001_device(devices)
+        if not device:
+            return None
 
-            lux = _read_float(path + "/in_illuminance_input")
-            raw = _read_float(path + "/in_illuminance_raw")
-            scale = _read_float(path + "/in_illuminance_scale")
-            if lux is None and raw is not None and scale is not None:
-                lux = raw * scale
+        path = device["path"]
+        lux = _read_float(path + "/in_illuminance_input")
+        raw = _read_float(path + "/in_illuminance_raw")
+        scale = _read_float(path + "/in_illuminance_scale")
+        if lux is None and raw is not None and scale is not None:
+            lux = raw * scale
 
-            return {
-                "name": device["name"],
-                "path": path,
-                "lux": lux,
-                "raw": raw,
-                "scale": scale,
-            }
-
-        return None
+        return {
+            "name": device["name"],
+            "path": path,
+            "lux": lux,
+            "raw": raw,
+            "scale": scale,
+        }
 
     def scan_qwiic_opt3001(self):
         for bus in QWIIC_BUSES:
