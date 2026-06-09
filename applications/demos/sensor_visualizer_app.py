@@ -23,6 +23,8 @@ BAR_SLOTS = 10
 REFRESH_MS = 150
 ACCEL_TARGET_SAMPLING_FREQUENCY = "104"
 OPT3001_TARGET_INT_TIME = "0.1"
+OPT3001_VERIFY_MS = 1000
+OPT3001_MISSES_TO_REMOVE = 2
 SCAN_INTERVAL_MS = 4000
 QWIIC_BUSES = (1, 3)
 OPT3001_ADDRESSES = (0x44, 0x45)
@@ -98,12 +100,15 @@ class SensorVisualizerApp(app.App):
         self.prev_state = lv.INDEV_STATE.RELEASED
         self.last_scan_ms = -SCAN_INTERVAL_MS
         self.last_probe = None
+        self.last_opt_verify_ms = -OPT3001_VERIFY_MS
         self.render_cache = {}
         self.opt3001_driver_available = _path_exists("/sys/bus/i2c/drivers/opt3001")
         self.accel_path = None
         self.accel_original_sampling_frequency = None
         self.opt3001_path = None
         self.opt3001_original_int_time = None
+        self.opt3001_binding = None
+        self.opt3001_miss_count = 0
 
     def enter(self, on_exit=None):
         self.on_exit_cb = on_exit
@@ -269,18 +274,78 @@ class SensorVisualizerApp(app.App):
         accel = self.read_accelerometer(devices)
         onboard_light = self.read_onboard_light(devices)
         opt_iio = self.read_opt3001_iio(devices)
-
+        if self.update_opt3001_connection(devices, opt_iio):
+            devices = self.list_iio_devices()
+            self.ensure_runtime_tuning(devices)
+            opt_iio = self.read_opt3001_iio(devices)
         if opt_iio:
             self.last_probe = None
-        elif (_now_ms() - self.last_scan_ms) >= SCAN_INTERVAL_MS:
-            self.last_scan_ms = _now_ms()
-            self.last_probe = self.scan_qwiic_opt3001()
-            if self.last_probe and self.last_probe.get("detected"):
-                self.try_bind_opt3001(self.last_probe["bus"], self.last_probe["address"])
 
         self.render_light(onboard_light)
         self.render_accel(accel)
         self.render_opt(opt_iio, self.last_probe)
+
+    def update_opt3001_connection(self, devices, opt_iio):
+        now_ms = _now_ms()
+        have_iio = self.find_opt3001_device(devices)
+        valid_opt_read = (
+            opt_iio is not None and
+            (
+                opt_iio.get("lux") is not None or
+                opt_iio.get("raw") is not None
+            )
+        )
+
+        if valid_opt_read:
+            self.opt3001_miss_count = 0
+            if not self.opt3001_binding and self.last_probe and self.last_probe.get("detected"):
+                self.opt3001_binding = {
+                    "bus": self.last_probe["bus"],
+                    "address": self.last_probe["address"],
+                }
+            self.last_probe = None
+            return False
+
+        scan_period_ms = OPT3001_VERIFY_MS if (self.opt3001_binding or have_iio) else SCAN_INTERVAL_MS
+        if (now_ms - self.last_opt_verify_ms) < scan_period_ms:
+            return False
+
+        self.last_opt_verify_ms = now_ms
+        self.last_scan_ms = now_ms
+        detected = self.scan_qwiic_opt3001()
+        changed = False
+
+        if detected:
+            self.opt3001_miss_count = 0
+            self.opt3001_binding = {
+                "bus": detected["bus"],
+                "address": detected["address"],
+            }
+            if not have_iio:
+                self.last_probe = detected
+                self.try_bind_opt3001(detected["bus"], detected["address"])
+                changed = True
+            else:
+                self.last_probe = None
+            return changed
+
+        self.last_probe = None
+        if have_iio or self.opt3001_binding:
+            self.opt3001_miss_count += 1
+            if self.opt3001_miss_count >= OPT3001_MISSES_TO_REMOVE:
+                if self.opt3001_binding:
+                    self.try_unbind_opt3001(
+                        self.opt3001_binding["bus"],
+                        self.opt3001_binding["address"],
+                    )
+                    changed = True
+                self.opt3001_miss_count = 0
+                self.opt3001_binding = None
+                self.restore_opt3001_tuning()
+        else:
+            self.opt3001_miss_count = 0
+
+        return changed
 
     def ensure_runtime_tuning(self, devices):
         accel = self.find_accelerometer_device(devices)
@@ -430,7 +495,7 @@ class SensorVisualizerApp(app.App):
         self.set_cached_text("accel_z", self.accel_z, "{:+.2f}".format(accel["axes_g"]["Z"]))
 
     def render_opt(self, opt_iio, probe):
-        if opt_iio:
+        if opt_iio and (opt_iio["lux"] is not None or opt_iio["raw"] is not None):
             self.set_opt_visible(True)
             self.set_cached_text("opt_title", self.opt_title, "QWIIC OPT3001")
             if opt_iio["lux"] is not None:
@@ -439,10 +504,6 @@ class SensorVisualizerApp(app.App):
                 self.set_cached_text("opt_value", self.opt_value, "{:3d}%".format(percent))
                 self.set_cached_text("opt_detail", self.opt_detail, "{:.1f} lux".format(opt_iio["lux"]))
                 self.set_bar_fill("opt_bar_fill", self.opt_bar, bar_fraction)
-            else:
-                self.set_cached_text("opt_value", self.opt_value, "live")
-                self.set_cached_text("opt_detail", self.opt_detail, "")
-                self.set_bar_fill("opt_bar_fill", self.opt_bar, 0.0)
             return
 
         if probe and probe.get("detected"):
@@ -565,6 +626,9 @@ class SensorVisualizerApp(app.App):
         return None
 
     def read_opt3001_iio(self, devices):
+        if self.opt3001_miss_count > 0:
+            return None
+
         device = self.find_opt3001_device(devices)
         if not device:
             return None
@@ -642,3 +706,13 @@ class SensorVisualizerApp(app.App):
 
         new_device_path = "/sys/bus/i2c/devices/i2c-{}/new_device".format(bus)
         _write_text(new_device_path, "opt3001 0x{:02x}\n".format(address))
+
+    def try_unbind_opt3001(self, bus, address):
+        delete_device_path = "/sys/bus/i2c/devices/i2c-{}/delete_device".format(bus)
+        if not _path_exists(delete_device_path):
+            return
+
+        if _write_text(delete_device_path, "0x{:02x}\n".format(address)):
+            return
+
+        _write_text(delete_device_path, "{:02x}\n".format(address))
