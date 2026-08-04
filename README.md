@@ -108,18 +108,27 @@ systemctl enable badge-launcher.service
 systemctl start badge-launcher.service
 ```
 
-The package installs to `/opt/badge_launcher` and sets up systemd autostart.
+The `badge-launcher` package shipped for BeagleBadge by TI/Armbian installs the
+application in `/usr/lib/badge-launcher`, installs
+`/usr/lib/systemd/system/badge-launcher.service`, and enables systemd
+autostart. The repository's legacy standalone package builder still stages its
+output in `/opt/badge_launcher`; package-layout changes belong in the TI
+packaging rather than the launcher application.
 
 ### Armbian first-boot onboarding
 
 On an Armbian image, Badge Launcher checks for Armbian's standard
 `/root/.not_logged_in_yet` marker before opening the normal launcher. When the
 marker is present, a full-screen, joystick-driven setup wizard collects and
-confirms:
+submits:
 
 - the root password
-- the daily username and display name
+- the daily username; its capitalized form becomes the display name
 - the daily user's password
+
+Each password is entered once. Password screens provide a Show/Hide key so the
+value can be reviewed without forcing a second slow e-paper entry. The user
+password screen can also reuse the root password with one selection.
 
 The launcher writes these answers to Armbian's supported first-login preset
 file with mode `0600`, then invokes `/usr/lib/armbian/armbian-firstlogin`.
@@ -149,7 +158,9 @@ DEST_DIR="~/badge_launcher"   # Installation directory
 ./scripts/sync.sh
 ```
 
-This syncs all files to `~/badge_launcher` on the device.
+This syncs all files to `~/badge_launcher` on the device. It is a separate,
+user-owned development copy and does not replace the TI/Armbian package in
+`/usr/lib/badge-launcher` unless you explicitly copy files there.
 
 #### 3. Run Manually
 
@@ -439,7 +450,12 @@ journalctl -u badge-launcher.service -f
 ### Manual Launch
 
 ```bash
-cd /opt/badge_launcher  # or ~/badge_launcher
+# Packaged launcher
+cd /usr/lib/badge-launcher
+./scripts/run.sh
+
+# Or a manual development copy
+cd ~/badge_launcher
 ./scripts/run.sh
 ```
 

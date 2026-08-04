@@ -23,7 +23,7 @@ class ArmbianOnboardingTests(unittest.TestCase):
             "proc",
         ):
             os.makedirs(os.path.join(self.root, directory), exist_ok=True)
-        self._write("etc/armbian-release", "BOARD=beaglebadge\n")
+        self._write("etc/armbian-release", 'BOARD=beaglebadge\nVERSION="26.08.0-trunk"\n')
         self._write("etc/default/locale", 'LANG="en_GB.UTF-8"\n')
         self._write("etc/timezone", "Europe/London\n")
         self._write("etc/passwd", "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\n")
@@ -42,11 +42,9 @@ class ArmbianOnboardingTests(unittest.TestCase):
     def _answers():
         return {
             "root_password": "Root's-safe-$ecret1",
-            "root_password_confirm": "Root's-safe-$ecret1",
             "username": "Andrei98",
             "real_name": "Andrei Aldea",
             "user_password": "User-safe-$ecret2",
-            "user_password_confirm": "User-safe-$ecret2",
         }
 
     def _backend(self, runner=None):
@@ -61,6 +59,7 @@ class ArmbianOnboardingTests(unittest.TestCase):
         backend = self._backend()
         self.assertTrue(backend.is_supported())
         self.assertTrue(backend.is_pending())
+        self.assertEqual(backend.system_version(), "Armbian 26.08.0-trunk")
         os.remove(os.path.join(self.root, "root/.not_logged_in_yet"))
         self.assertFalse(backend.is_pending())
 
@@ -69,14 +68,9 @@ class ArmbianOnboardingTests(unittest.TestCase):
         for invalid in ("", "98andrei", "andrei_badge", "root"):
             with self.assertRaises(ValidationError):
                 validate_username(invalid)
-        with self.assertRaises(ValidationError):
-            validate_password("short")
-
-    def test_confirmation_must_match(self):
-        answers = self._answers()
-        answers["user_password_confirm"] = "different-password"
-        with self.assertRaisesRegex(ValidationError, "do not match"):
-            validate_answers(answers)
+        self.assertEqual(validate_password("x"), "x")
+        with self.assertRaisesRegex(ValidationError, "Enter a password"):
+            validate_password("")
 
     def test_preset_merge_is_atomic_private_and_shell_safe(self):
         backend = self._backend()

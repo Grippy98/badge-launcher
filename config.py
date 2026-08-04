@@ -18,7 +18,7 @@ badge_name = "Beagle\nBadge"
 badge_info = "Linux (CES Port)\nBuild - Python"
 badge_logo = 0 # 0: Random, 1: Beagle, 2: TI
 badge_qr_link = "https://beagleboard.org"
-version = "1.0.0"  # Default fallback
+version = "2026.08.04"  # Default fallback
 
 def load_version():
     """Load version from VERSION file.
@@ -30,7 +30,7 @@ def load_version():
         with open(VERSION_FILE, 'r') as f:
             return f.read().strip()
     except:
-        return "1.0.0"
+        return "2026.08.04"
 
 def load():
     """Load configuration from JSON file.

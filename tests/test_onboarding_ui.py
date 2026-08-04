@@ -55,6 +55,9 @@ class MockObject:
     def set_style_radius(self, *_args):
         pass
 
+    def set_style_pad_all(self, *_args):
+        pass
+
     def set_style_text_align(self, *_args):
         pass
 
@@ -71,14 +74,17 @@ class MockLabel(MockObject):
 
 
 class MockGroup:
+    def __init__(self):
+        self.objects = []
+
     def set_editing(self, _editing):
         pass
 
     def remove_all_objs(self):
-        pass
+        self.objects = []
 
-    def add_obj(self, _obj):
-        pass
+    def add_obj(self, obj):
+        self.objects.append(obj)
 
 
 class MockLVGL:
@@ -142,7 +148,16 @@ class MockInput:
 sys.modules["lvgl"] = MockLVGL()
 sys.modules["input"] = MockInput()
 
-from core.onboarding import FIELDS, OnboardingApp
+from core.onboarding import (
+    FIELDS,
+    FIELD_DIVIDER_Y,
+    KEYBOARD_KEY_HEIGHT,
+    KEYBOARD_ROW_HEIGHT,
+    KEYBOARD_START_Y,
+    STAGES,
+    OnboardingApp,
+    _display_name,
+)
 
 
 class Event:
@@ -166,6 +181,9 @@ class SuccessfulBackend:
 
 
 class OnboardingUiTests(unittest.TestCase):
+    def setUp(self):
+        MockInput.driver.group = MockGroup()
+
     def test_successful_wizard_reaches_launcher(self):
         opened = []
         backend = SuccessfulBackend()
@@ -178,11 +196,8 @@ class OnboardingUiTests(unittest.TestCase):
 
         values = {
             "root_password": "root-password",
-            "root_password_confirm": "root-password",
             "username": "BadgeUser",
-            "real_name": "Badge User",
             "user_password": "user-password",
-            "user_password_confirm": "user-password",
         }
         for index, field in enumerate(FIELDS):
             app.field_index = index
@@ -193,19 +208,76 @@ class OnboardingUiTests(unittest.TestCase):
         app._on_key(Event(MockLVGL.KEY.ENTER))
         self.assertEqual(app.mode, "success")
         self.assertEqual(backend.received["username"], "badgeuser")
+        self.assertEqual(backend.received["real_name"], "Badgeuser")
 
         app._on_key(Event(MockLVGL.KEY.ENTER))
         self.assertEqual(opened, [True])
 
-    def test_mismatched_confirmation_stays_on_field(self):
+    def test_short_password_is_accepted_without_confirmation(self):
         app = OnboardingApp(lambda: None, backend=SuccessfulBackend())
         app.enter()
-        app.field_index = 1
-        app.answers["root_password"] = "root-password"
-        app.answers["root_password_confirm"] = "wrong-password"
+        app.field_index = 0
+        app.answers["root_password"] = "x"
         app._next_field()
         self.assertEqual(app.field_index, 1)
         self.assertEqual(app.mode, "field")
+
+    def test_password_can_be_shown_and_hidden(self):
+        app = OnboardingApp(lambda: None, backend=SuccessfulBackend())
+        app.enter()
+        app._on_key(Event(MockLVGL.KEY.ENTER))
+
+        self.assertIn("SHOW", app._current_keys()[-1])
+        app._activate_key("SHOW")
+        self.assertTrue(app.password_visible)
+        self.assertIn("HIDE", app._current_keys()[-1])
+        app._activate_key("HIDE")
+        self.assertFalse(app.password_visible)
+
+    def test_user_password_can_reuse_root_password(self):
+        app = OnboardingApp(lambda: None, backend=SuccessfulBackend())
+        app.enter()
+        app.field_index = len(FIELDS) - 1
+        app.answers["root_password"] = "root-choice"
+        app.answers["username"] = "badgeuser"
+        app.answers["real_name"] = "Badgeuser"
+        app._render_field()
+
+        self.assertIn("USE_ROOT", app._current_keys()[-1])
+        app._activate_key("USE_ROOT")
+
+        self.assertEqual(app.answers["user_password"], "root-choice")
+        self.assertEqual(app.mode, "confirm")
+
+    def test_progress_line_matches_wizard_stages(self):
+        self.assertEqual(
+            tuple(stage[0] for stage in STAGES),
+            ("Root", "Username", "Password", "Review"),
+        )
+
+    def test_display_name_uses_micropython_compatible_operations(self):
+        self.assertEqual(_display_name("grippy98"), "Grippy98")
+
+    def test_keyboard_uses_lower_screen_space_without_overflow(self):
+        keyboard_bottom = KEYBOARD_START_Y + 4 * KEYBOARD_ROW_HEIGHT + KEYBOARD_KEY_HEIGHT
+        self.assertEqual(keyboard_bottom, 295)
+        self.assertEqual(300 - keyboard_bottom, 5)
+
+    def test_field_progress_has_divider_and_root_instruction(self):
+        self.assertEqual(FIELD_DIVIDER_Y, 29)
+        self.assertEqual(FIELDS[0][1], "Pick a root password")
+
+    def test_redraw_restores_screen_as_only_input_target(self):
+        app = OnboardingApp(lambda: None, backend=SuccessfulBackend())
+        app.enter()
+        app._on_key(Event(MockLVGL.KEY.ENTER))
+
+        group = MockInput.driver.group
+        group.objects.append(MockObject(app.screen))
+        app._on_key(Event(MockLVGL.KEY.RIGHT))
+
+        self.assertEqual(group.objects, [app.screen])
+        self.assertEqual(app.column, 1)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,11 @@
+badge-launcher (2026.08.04) unstable; urgency=medium
+
+  * Add screen-based Armbian first-boot onboarding.
+  * Improve e-paper keyboard navigation and onboarding layout.
+  * Adopt calendar-based Linux port versioning.
+
+ -- Andrei Aldea <andrei1998@gmail.com>  Tue, 04 Aug 2026 18:45:00 -0500
+
 badge-launcher (1.0.0) unstable; urgency=medium
 
   * Initial release.

@@ -81,6 +81,17 @@ def _read_first_line(path, fallback):
         return fallback
 
 
+def _read_release_value(path, key):
+    try:
+        with open(path, "r") as source:
+            for line in source:
+                if line.startswith(key + "="):
+                    return _unquote(line.split("=", 1)[1])
+    except OSError:
+        pass
+    return ""
+
+
 def _unquote(value):
     value = value.strip()
     if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
@@ -155,8 +166,11 @@ def validate_real_name(real_name):
 
 
 def validate_password(password):
-    if len(password) < 8:
-        raise ValidationError("Password must be at least 8 characters")
+    # An empty preset tells armbian-firstlogin to prompt on a text console,
+    # which cannot complete the launcher's screen-only workflow. Otherwise,
+    # match Armbian and leave password strength policy to the user.
+    if not password:
+        raise ValidationError("Enter a password")
     if len(password) > 128:
         raise ValidationError("Password must be 128 characters or fewer")
     if any(char in password for char in ("\n", "\r", "\x00")):
@@ -171,10 +185,6 @@ def validate_answers(answers):
         "real_name": validate_real_name(answers.get("real_name", "")),
         "user_password": validate_password(answers.get("user_password", "")),
     }
-    if answers.get("root_password_confirm") != normalized["root_password"]:
-        raise ValidationError("Root passwords do not match")
-    if answers.get("user_password_confirm") != normalized["user_password"]:
-        raise ValidationError("User passwords do not match")
     return normalized
 
 
@@ -219,6 +229,10 @@ class ArmbianOnboarding:
 
     def is_pending(self):
         return self.is_supported() and _exists(self.marker_path)
+
+    def system_version(self):
+        version = _read_release_value(_rooted(self.root, ARMBIAN_RELEASE), "VERSION")
+        return "Armbian " + version if version else "Armbian"
 
     def is_running(self):
         return _process_is_firstlogin(self.proc_root)

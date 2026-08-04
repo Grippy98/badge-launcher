@@ -64,8 +64,11 @@ def main():
         print("\nShutdown requested...")
     except Exception as e:
         print(f"Fatal error: {e}")
-        import traceback
-        traceback.print_exc()
+        if hasattr(sys, "print_exception"):
+            sys.print_exception(e)
+        else:
+            import traceback
+            traceback.print_exc()
     finally:
         # Cleanup all drivers
         print("Cleaning up...")

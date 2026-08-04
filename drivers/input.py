@@ -25,8 +25,11 @@ EVIOCGRAB = 0x40044590
 
 # Key mapping for special/navigation keys
 KEY_MAP = {
-    103: lv.KEY.PREV,  # KEY_UP -> PREV (Focus Previous)
-    108: lv.KEY.NEXT,  # KEY_DOWN -> NEXT (Focus Next)
+    # Use directional keys instead of PREV/NEXT. LVGL consumes PREV/NEXT for
+    # group focus traversal before a focused screen can receive its KEY event;
+    # launcher screens handle UP/DOWN and perform any focus movement themselves.
+    103: lv.KEY.UP,    # KEY_UP
+    108: lv.KEY.DOWN,  # KEY_DOWN
     105: lv.KEY.LEFT,  # KEY_LEFT
     106: lv.KEY.RIGHT, # KEY_RIGHT
     28:  lv.KEY.ENTER, # KEY_ENTER
