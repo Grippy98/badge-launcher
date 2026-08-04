@@ -283,7 +283,7 @@ The launcher stores configuration in `config.json` in the application directory:
 {
   "sound_enabled": true,
   "badge_name": "Beagle\nBadge",
-  "badge_info": "Badge Launcher Linux\nBuild - Python",
+  "badge_info": "Badge Launcher\nBuild - Python",
   "badge_logo": 0
 }
 ```

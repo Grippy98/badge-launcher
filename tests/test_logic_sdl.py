@@ -248,7 +248,7 @@ class MockConfig:
     badge_logo = 0  # Attribute for direct access (0=Random, 1=Beagle, 2=TI)
     badge_name = 'Test Badge'
     badge_info = 'Testing'
-    version = '2026.08.04.1'
+    version = '2026.08.04.2'
     sound_enabled = True
 
     @staticmethod

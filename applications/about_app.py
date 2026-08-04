@@ -29,7 +29,7 @@ class AboutApp(app.App):
         self.screen.add_event_cb(self.on_key, lv.EVENT.KEY, None)
         
         lbl = lv.label(self.screen)
-        lbl.set_text(f"Badge Launcher Linux\n\nVersion: {config.version}\n")
+        lbl.set_text(f"Badge Launcher\n\nVersion: {config.version}\n")
         lbl.set_style_text_color(lv.color_black(), 0)
         lbl.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
         lbl.center()
