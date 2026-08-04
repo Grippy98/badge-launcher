@@ -273,7 +273,7 @@ class MenuApp:
 
         # Version info
         ver = lv.label(left_panel)
-        ver.set_text(f"Linux Port\nv{config.version}")
+        ver.set_text(f"Badge Launcher Linux\nv{config.version}")
         ver.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
         try:
             ver.set_style_text_font(lv.font_montserrat_14, 0)

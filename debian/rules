@@ -6,16 +6,16 @@
 override_dh_auto_build:
 	# Build nothing (Python app)
 
-override_dh_auto_install:
+	override_dh_auto_install:
 	# Create target directory
-	mkdir -p debian/badge-launcher/opt/badge_launcher
+	mkdir -p debian/badge-launcher/usr/lib/badge-launcher
 	
 	# Install application files
-	rsync -av --exclude='debian' --exclude='.git' --exclude='lv_micropython' --exclude='*.deb' --exclude='build_deb.sh' --exclude='sync.sh' --exclude='.gemini' ./ debian/badge-launcher/opt/badge_launcher/
+	rsync -av --exclude='debian' --exclude='.git' --exclude='lv_micropython' --exclude='*.deb' --exclude='build_deb.sh' --exclude='sync.sh' --exclude='.gemini' ./ debian/badge-launcher/usr/lib/badge-launcher/
 	
 	# Install service file
-	mkdir -p debian/badge-launcher/lib/systemd/system
-	cp debian/badge-launcher.service debian/badge-launcher/lib/systemd/system/
+	mkdir -p debian/badge-launcher/usr/lib/systemd/system
+	cp debian/badge-launcher.service debian/badge-launcher/usr/lib/systemd/system/
 
 override_dh_auto_clean:
 	dh_auto_clean

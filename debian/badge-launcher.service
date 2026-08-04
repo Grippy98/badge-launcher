@@ -4,8 +4,8 @@ After=multi-user.target network.target armbian-firstrun.service
 
 [Service]
 Type=simple
-ExecStart=/opt/badge_launcher/scripts/run.sh
-WorkingDirectory=/opt/badge_launcher
+ExecStart=/usr/lib/badge-launcher/scripts/run.sh
+WorkingDirectory=/usr/lib/badge-launcher
 Restart=always
 RestartSec=3
 User=root

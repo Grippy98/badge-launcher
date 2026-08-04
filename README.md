@@ -108,12 +108,10 @@ systemctl enable badge-launcher.service
 systemctl start badge-launcher.service
 ```
 
-The `badge-launcher` package shipped for BeagleBadge by TI/Armbian installs the
-application in `/usr/lib/badge-launcher`, installs
-`/usr/lib/systemd/system/badge-launcher.service`, and enables systemd
-autostart. The repository's legacy standalone package builder still stages its
-output in `/opt/badge_launcher`; package-layout changes belong in the TI
-packaging rather than the launcher application.
+Both the TI/Armbian package and the repository's standalone package builder
+install the application in `/usr/lib/badge-launcher`, install
+`/usr/lib/systemd/system/badge-launcher.service`, and enable systemd
+autostart.
 
 ### Armbian first-boot onboarding
 
@@ -285,7 +283,7 @@ The launcher stores configuration in `config.json` in the application directory:
 {
   "sound_enabled": true,
   "badge_name": "Beagle\nBadge",
-  "badge_info": "Linux (CES Port)\nBuild - Python",
+  "badge_info": "Badge Launcher Linux\nBuild - Python",
   "badge_logo": 0
 }
 ```

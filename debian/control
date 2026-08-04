@@ -1,7 +1,7 @@
 Source: badge-launcher
 Section: utils
 Priority: optional
-Maintainer: Andrei Aldea andrei@ti.com
+Maintainer: Andrei Aldea <andrei1998@gmail.com>
 Build-Depends: debhelper-compat (= 13), rsync, build-essential
 Standards-Version: 4.5.0
 

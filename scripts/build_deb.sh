@@ -10,8 +10,8 @@ DEB_FILE="${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
 # Temporary build directory
 BUILD_DIR=$(mktemp -d -t deb-build-XXXXXXXXXX)
 STAGING_DIR="$BUILD_DIR/staging"
-INSTALL_DIR="$STAGING_DIR/opt/badge_launcher"
-SERVICE_DIR="$STAGING_DIR/etc/systemd/system"
+INSTALL_DIR="$STAGING_DIR/usr/lib/badge-launcher"
+SERVICE_DIR="$STAGING_DIR/usr/lib/systemd/system"
 DEBIAN_DIR="$STAGING_DIR/DEBIAN"
 
 # Cleanup on exit
@@ -71,7 +71,7 @@ cd - > /dev/null
 
 # Prepare data.tar.gz
 cd "$STAGING_DIR"
-COPYFILE_DISABLE=1 tar -czf "$BUILD_DIR/data.tar.gz" --format=ustar --owner=0 --group=0 opt etc
+COPYFILE_DISABLE=1 tar -czf "$BUILD_DIR/data.tar.gz" --format=ustar --owner=0 --group=0 usr
 cd - > /dev/null
 
 # Create debian-binary

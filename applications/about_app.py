@@ -5,6 +5,7 @@ Simple information screen displaying the badge launcher version and credits.
 
 import lvgl as lv
 import sys
+import config
 if "core" not in sys.path: sys.path.append("core")
 from core import app
 
@@ -28,7 +29,7 @@ class AboutApp(app.App):
         self.screen.add_event_cb(self.on_key, lv.EVENT.KEY, None)
         
         lbl = lv.label(self.screen)
-        lbl.set_text("Beagle Badge Linux Port\n\nVersion: 0.2\n")
+        lbl.set_text(f"Badge Launcher Linux\n\nVersion: {config.version}\n")
         lbl.set_style_text_color(lv.color_black(), 0)
         lbl.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
         lbl.center()

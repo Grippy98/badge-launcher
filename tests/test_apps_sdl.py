@@ -102,6 +102,7 @@ class MockSound:
 
 class MockConfig:
     data = {'sound_enabled': True, 'badge_name': 'Test', 'badge_info': 'Testing', 'logo': 'Beagle'}
+    version = '2026.08.04.1'
     @staticmethod
     def load(): pass
     @staticmethod

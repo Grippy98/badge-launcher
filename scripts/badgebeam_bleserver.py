@@ -17,8 +17,10 @@ GATT_CHRC_IFACE = 'org.bluez.GattCharacteristic1'
 BADGE_SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0'
 DISPLAY_CHAR_UUID = '12345678-1234-5678-1234-56789abcdef1'
 
-# The path to write the 15,000 byte payload
-PAYLOAD_DIR = "/opt/badge_launcher/applications/apps/badgebeam"
+# Resolve the payload location from this script so packaged and development
+# copies use their own application tree.
+APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PAYLOAD_DIR = os.path.join(APP_DIR, "applications", "apps", "badgebeam")
 PAYLOAD_PATH = os.path.join(PAYLOAD_DIR, "latest.bin")
 
 buffer_cache = bytearray()

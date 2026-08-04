@@ -5,7 +5,9 @@ set -e
 if [ -d /run/systemd/system ]; then
     ldconfig
     systemctl daemon-reload
-    systemctl enable badge-launcher.service
+    # Recreate enablement links when upgrading from the legacy /opt package,
+    # whose unit lived under /etc/systemd/system.
+    systemctl reenable badge-launcher.service
     # Reload udev rules for the hardware
     if command -v udevadm > /dev/null; then
         udevadm control --reload-rules && udevadm trigger

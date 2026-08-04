@@ -7,7 +7,7 @@ badge name/info, and logo selection. Configuration is stored in JSON format.
 import json
 import os
 
-# Use relative path - works for both /opt/badge_launcher and ~/badge_launcher
+# Use a relative path so packaged and development copies share the same code.
 # run.sh sets the working directory to APP_DIR before launching
 CONFIG_FILE = "config.json"
 VERSION_FILE = "VERSION"
@@ -15,10 +15,10 @@ VERSION_FILE = "VERSION"
 # Defaults
 sound_enabled = True
 badge_name = "Beagle\nBadge"
-badge_info = "Linux (CES Port)\nBuild - Python"
+badge_info = "Badge Launcher Linux\nBuild - Python"
 badge_logo = 0 # 0: Random, 1: Beagle, 2: TI
 badge_qr_link = "https://beagleboard.org"
-version = "2026.08.04"  # Default fallback
+version = "2026.08.04.1"  # Default fallback
 
 def load_version():
     """Load version from VERSION file.
@@ -30,7 +30,7 @@ def load_version():
         with open(VERSION_FILE, 'r') as f:
             return f.read().strip()
     except:
-        return "2026.08.04"
+        return "2026.08.04.1"
 
 def load():
     """Load configuration from JSON file.
@@ -46,7 +46,7 @@ def load():
             data = json.load(f)
             sound_enabled = data.get("sound_enabled", True)
             badge_name = data.get("badge_name", "Beagle\nBadge")
-            badge_info = data.get("badge_info", "Linux (CES Port)\nBuild - Python")
+            badge_info = data.get("badge_info", "Badge Launcher Linux\nBuild - Python")
             badge_logo = data.get("badge_logo", 0)
             badge_qr_link = data.get("badge_qr_link", "https://beagleboard.org")
     except:
