@@ -110,6 +110,24 @@ systemctl start badge-launcher.service
 
 The package installs to `/opt/badge_launcher` and sets up systemd autostart.
 
+### Armbian first-boot onboarding
+
+On an Armbian image, Badge Launcher checks for Armbian's standard
+`/root/.not_logged_in_yet` marker before opening the normal launcher. When the
+marker is present, a full-screen, joystick-driven setup wizard collects and
+confirms:
+
+- the root password
+- the daily username and display name
+- the daily user's password
+
+The launcher writes these answers to Armbian's supported first-login preset
+file with mode `0600`, then invokes `/usr/lib/armbian/armbian-firstlogin`.
+Armbian—not Badge Launcher—remains responsible for changing passwords,
+creating the sudo-enabled account, and marking onboarding complete. Existing
+automated first-boot settings in the marker are preserved. Onboarding is not
+shown on non-Armbian systems or after Armbian removes the marker.
+
 ### Option 2: Manual Development Install
 
 For active development, use the sync script to deploy directly:

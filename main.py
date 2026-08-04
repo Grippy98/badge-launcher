@@ -19,6 +19,7 @@ import tty
 
 # Local imports - core
 from core import menu
+from core import onboarding
 
 def main():
     """Main entry point for the Badge Launcher."""
@@ -36,9 +37,21 @@ def main():
         input.init()
         tty.init()
 
-        # Launch main menu
-        app_menu = menu.MenuApp()
-        app_menu.enter()
+        # Launch Armbian's first-boot UI when its standard pending marker is
+        # present. Otherwise go straight to the normal Badge Launcher menu.
+        app_menu = None
+        onboarding_app = None
+
+        def launch_menu():
+            nonlocal app_menu
+            app_menu = menu.MenuApp()
+            app_menu.enter()
+
+        if onboarding.OnboardingApp.should_start():
+            onboarding_app = onboarding.OnboardingApp(on_complete=launch_menu)
+            onboarding_app.enter()
+        else:
+            launch_menu()
 
         print("Python Badge Launcher running...")
 

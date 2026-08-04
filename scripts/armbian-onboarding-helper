@@ -1,0 +1,45 @@
+#!/bin/sh
+# Run Armbian's distribution-owned first-login script with a real TTY.
+# Badge Launcher has already stored validated PRESET_* values in the standard
+# mode-0600 /root/.not_logged_in_yet file, so no secret is passed on argv.
+
+set -u
+
+MARKER=/root/.not_logged_in_yet
+FIRSTLOGIN=/usr/lib/armbian/armbian-firstlogin
+LOCK_DIR=/run/badge-launcher-armbian-onboarding.lock
+LOG=/var/log/badge-launcher-onboarding.log
+
+[ -f "$MARKER" ] || exit 0
+[ -x "$FIRSTLOGIN" ] || exit 69
+
+# Avoid racing a first-login session which was started from serial or SSH.
+for cmdline in /proc/[0-9]*/cmdline; do
+	[ -r "$cmdline" ] || continue
+	if tr '\000' ' ' < "$cmdline" 2>/dev/null | grep -Fq "$FIRSTLOGIN"; then
+		exit 75
+	fi
+done
+
+if ! mkdir "$LOCK_DIR" 2>/dev/null; then
+	exit 75
+fi
+trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT HUP INT TERM
+
+TTY_DEVICE=/dev/tty0
+[ -c "$TTY_DEVICE" ] || TTY_DEVICE=/dev/console
+[ -c "$TTY_DEVICE" ] || exit 69
+
+umask 077
+: > "$LOG"
+
+"$FIRSTLOGIN" < "$TTY_DEVICE" >> "$LOG" 2>&1
+status=$?
+
+# The marker is Armbian's authoritative completion signal. Even a zero exit is
+# not success if Armbian intentionally left it for a safe retry.
+[ ! -f "$MARKER" ] || {
+	[ "$status" -ne 0 ] || status=1
+	exit "$status"
+}
+exit 0
