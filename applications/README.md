@@ -7,6 +7,7 @@ This directory contains applications for the Badge Launcher, organized by catego
 ```
 applications/
 ├── apps/        # User applications
+├── demos/       # Live demonstrations
 ├── games/       # Games
 ├── tools/       # Utility tools
 └── settings/    # System settings
@@ -82,7 +83,7 @@ applications/apps/
 
 ## Creating a Folder-Based App
 
-1. Create a folder in the appropriate category (apps/games/tools)
+1. Create a folder in the appropriate category (apps/demos/games/tools)
 2. Create your main app file following the naming convention
 3. Add any resources (data, assets, etc.) to subdirectories
 4. The app will be automatically discovered and loaded
