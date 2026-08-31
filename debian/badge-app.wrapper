@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+
+launcher_libdir=${BADGE_LAUNCHER_LIBDIR:-/usr/lib/badge-launcher}
+launcher_python=${BADGE_LAUNCHER_PYTHON:-/usr/bin/python3}
+PYTHONPATH=$launcher_libdir${PYTHONPATH:+:$PYTHONPATH}
+export PYTHONPATH
+
+exec "$launcher_python" -m badge_sdk.cli "$@"

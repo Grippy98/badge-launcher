@@ -1,0 +1,17 @@
+[Unit]
+Description=BadgeBeam Bluetooth image receiver
+After=bluetooth.service
+Wants=bluetooth.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/lib/badge-launcher/scripts/badgebeam_bleserver.py
+WorkingDirectory=/usr/lib/badge-launcher
+Environment=BADGE_DATA_DIR=/var/lib/badge-launcher
+EnvironmentFile=-/etc/default/badgebeam-receiver
+Restart=on-failure
+RestartSec=3
+User=root
+
+[Install]
+WantedBy=multi-user.target

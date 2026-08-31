@@ -1,3 +1,11 @@
+badge-launcher (2026.08.30~experimental1) unstable; urgency=medium
+
+  * Replace the MicroPython/LVGL runtime with CPython and the portable Badge SDK.
+  * Port all first-party applications and add a desktop/headless simulator.
+  * Harden app discovery and installation and restore the BadgeBeam receiver.
+
+ -- Andrei Aldea <andrei1998@gmail.com>  Sun, 30 Aug 2026 12:00:00 -0500
+
 badge-launcher (2026.08.04.2) unstable; urgency=medium
 
   * Shorten the product name to Badge Launcher.

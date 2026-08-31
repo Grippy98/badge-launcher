@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "id": "hello-badge",
+  "name": "Hello Badge",
+  "version": "1.0.0",
+  "category": "apps",
+  "entry_point": "hello_badge:HelloBadge",
+  "description": "A minimal portable BeagleBadge app",
+  "author": "BeagleBadge developers",
+  "license": "GPL-2.0-only",
+  "requires_python": ">=3.11",
+  "requires_sdk": ">=1.0,<2",
+  "permissions": [],
+  "dependencies": [],
+  "system_dependencies": []
+}

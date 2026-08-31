@@ -1,625 +1,190 @@
-# Python Badge Launcher
+# BeagleBadge Launcher — CPython experimental
 
-A MicroPython-based launcher for the BeagleBadge, using LVGL (Light and Versatile Graphics Library) for the UI. This project provides a robust application launcher with games, tools, and media players.
+This branch is a standard-Python rewrite of the Linux launcher for the 400 × 300 BeagleBadge. Apps build a small declarative UI with `badge_sdk`; the launcher renders it with Pillow and sends the same frame to the Linux framebuffer, a pygame desktop window, or an in-memory test backend.
 
-## Prerequisites
+The public app API does not expose framebuffer, pygame, or device-specific drawing code. A basic app is one class with a `view()` method:
 
-### Hardware
-- BeagleBadge (or compatible Linux-based badge device)
+```python
+from badge_sdk import App, Column, Screen, Text
 
-### OS Requirements
-- Linux distribution with `systemd` (e.g., Debian)
-- Display: 400x300 E-Ink display
-- Input: GPIO buttons or compatible input device
 
-### Host System Requirements (for development)
-- `gcc` (for compiling asset conversion tools)
-- `sshpass` (optional, for deployment scripts)
+class HelloBadge(App):
+    app_id = "hello-badge"
+    name = "Hello Badge"
 
-## Project Structure
-
-```
-badge-slop/
-├── main.py                  # Application entry point
-├── config.py                # Configuration management
-├── core/                    # Framework core
-│   ├── app.py              # Base app class
-│   ├── app_loader.py       # Dynamic app loader
-│   ├── menu.py             # Main menu interface
-│   ├── statusbar.py        # Status bar (CPU, RAM, battery)
-│   └── bottombar.py        # Bottom bar (network, USB)
-├── applications/            # User applications
-│   ├── apps/               # General applications (flat files & folders)
-│   │   ├── chiptunez/     # Folder-based app example
-│   │   ├── dvd_app.py     # Flat file app example
-│   │   └── ...
-│   ├── games/              # Games (Snake, Brick, etc.)
-│   ├── settings/           # System settings
-│   └── tools/              # Utilities (I2C scanner, etc.)
-├── drivers/                 # Hardware drivers
-│   ├── display.py          # Display driver
-│   ├── input.py            # Input handling
-│   ├── sound.py            # Sound/beeper driver
-│   └── tty.py              # TTY management
-├── lib/                     # Helper libraries
-├── assets/                  # Binary assets
-│   ├── *.bin               # Converted images
-│   └── *.c                 # C source images
-├── scripts/                 # Build and deployment
-│   ├── run.sh              # Launcher script
-│   ├── sync.sh             # Deploy to device
-│   └── build_deb.sh        # Build debian package
-├── tools/                   # Development tools
-│   ├── img2bin.c           # Image converter
-│   ├── convert_assets.py   # Asset conversion helper
-│   └── debug_loader.py     # Debug utility
-├── tests/                   # Test scripts
-├── debian/                  # Debian packaging files
-├── lv_micropython/         # MicroPython with LVGL (submodule)
+    def view(self):
+        return Screen(Column(Text("Hello, badge!", align="center", flex=1)), title=self.name)
 ```
 
-## System Dependencies
+See [App development](docs/APP_DEVELOPMENT.md) and the complete [Hello Badge example](examples/hello_badge).
 
-### Required Packages on Device
+## What is included
+
+- Launcher categories, system status, Badge Mode, and Armbian first-boot onboarding
+- App Store with schema-v2 manifest validation, staged installs, updates, rollback support, and lazy app imports
+- Wi-Fi, Bluetooth, sound, reboot, shutdown, I2C scanner, serial monitor, file manager, RGB LED, and BadgeBeam tools
+- Snake and Brick Breaker
+- Linux framebuffer and evdev backends for the badge
+- pygame-ce desktop simulation and an in-memory headless screenshot backend
+
+The first-party apps under `builtin_apps/` have been rewritten for CPython and the public SDK. Old store entries using the v1 MicroPython/LVGL contract remain identifiable in the catalog, but the CPython launcher marks them **Port Required** and does not install or run them.
+
+## Desktop quick start
+
+Python 3.11 or newer is required.
 
 ```bash
-# Basic build tools (if building MicroPython on device)
-apt install -y build-essential libreadline-dev libffi-dev pkg-config
-
-# I2C tools (for I2C Scanner application)
-apt install -y i2c-tools
+python3 -m venv .venv-cpython
+source .venv-cpython/bin/activate
+python -m pip install -e '.[desktop,test]'
+badge-launcher --backend desktop --skip-onboarding
 ```
 
-### Required Packages for Development (Linux/SDL)
+Desktop controls:
+
+| Key | Action |
+| --- | --- |
+| Arrow keys | Navigate |
+| Enter | Select |
+| Escape | Back |
+| Backspace | Delete text |
+| Printable keys | Enter text |
+
+Desktop mode does not enable evdev or serial input and disables tone output. Command-backed screens and discoverable sysfs capabilities still reflect the development host and may report that their Linux tools are unavailable; they are not populated with fake device data.
+
+For a non-interactive render suitable for CI:
+
 ```bash
-sudo apt-get install libsdl2-dev cmake build-essential python3-dev python3-pip python3-venv libffi-dev
+badge-launcher --backend headless --frames 1 \
+  --screenshot /tmp/beaglebadge-launcher.png \
+  --no-hardware --skip-onboarding
 ```
 
-## Installation
-
-### Option 1: Debian Package (Recommended)
-
-#### 1. Build the Package
-
-On your development machine, from the project root:
+Run the unit suite with:
 
 ```bash
-# Make sure you have the MicroPython binary
-# (see "Building MicroPython" section below)
+python -m pytest
+```
 
-# Build the .deb package
+Create and preview a new app without writing a manifest by hand:
+
+```bash
+badge-app new /tmp/my-first-badge-app --name "My First App"
+badge-app run /tmp/my-first-badge-app
+badge-app validate /tmp/my-first-badge-app
+```
+
+The generator writes just `badge-app.json` and one ordinary Python module. For
+automated UI tests, `badge_sdk.testing.AppHarness` drives the real runtime with
+logical button events and exposes the resulting 400 × 300 Pillow image.
+
+## Install on the badge
+
+Build the arm64 Debian package from the repository root:
+
+```bash
 ./scripts/build_deb.sh
 ```
 
-This creates `badge-launcher_<version>_arm64.deb` in the current directory.
-
-#### 2. Install on Device
+Copy the resulting `badge-launcher_<version>_arm64.deb` to the badge, then install and start it:
 
 ```bash
-# Copy package to device
-scp badge-launcher_*.deb root@<device-ip>:~
-
-# Install on device
-ssh root@<device-ip>
-dpkg -i badge-launcher_*.deb
-
-# Enable autostart
-systemctl enable badge-launcher.service
-systemctl start badge-launcher.service
+sudo apt install ./badge-launcher_<version>_arm64.deb
+sudo systemctl enable --now badge-launcher.service
 ```
 
-Both the TI/Armbian package and the repository's standalone package builder
-install the application in `/usr/lib/badge-launcher`, install
-`/usr/lib/systemd/system/badge-launcher.service`, and enable systemd
-autostart.
+The service runs `main.py` with the framebuffer backend from `/usr/lib/badge-launcher`. Persistent state is stored in `/var/lib/badge-launcher`. On an Armbian image, the launcher shows its joystick-driven onboarding only while `/root/.not_logged_in_yet` exists, then delegates account setup to Armbian's first-login tooling.
 
-### Armbian first-boot onboarding
-
-On an Armbian image, Badge Launcher checks for Armbian's standard
-`/root/.not_logged_in_yet` marker before opening the normal launcher. When the
-marker is present, a full-screen, joystick-driven setup wizard collects and
-submits:
-
-- the root password
-- the daily username; its capitalized form becomes the display name
-- the daily user's password
-
-Each password is entered once. Password screens provide a Show/Hide key so the
-value can be reviewed without forcing a second slow e-paper entry. The user
-password screen can also reuse the root password with one selection.
-
-The launcher writes these answers to Armbian's supported first-login preset
-file with mode `0600`, then invokes `/usr/lib/armbian/armbian-firstlogin`.
-Armbian—not Badge Launcher—remains responsible for changing passwords,
-creating the sudo-enabled account, and marking onboarding complete. Existing
-automated first-boot settings in the marker are preserved. Onboarding is not
-shown on non-Armbian systems or after Armbian removes the marker.
-
-### Option 2: Manual Development Install
-
-For active development, use the sync script to deploy directly:
-
-#### 1. Configure sync.sh
-
-Edit `scripts/sync.sh` and set your device information:
+For a manual hardware run from a checkout:
 
 ```bash
-BADGE_IP="192.168.1.xxx"      # Your device IP
-BADGE_USER="root"
-BADGE_PASS="your-password"
-DEST_DIR="~/badge_launcher"   # Installation directory
+sudo BADGE_DATA_DIR=/var/lib/badge-launcher \
+  python3 main.py --backend framebuffer
 ```
 
-#### 2. Deploy Files
+Useful runtime options include `--framebuffer`, `--data-dir`, `--no-hardware`, `--frames`, and `--screenshot`; run `badge-launcher --help` for the complete list.
 
-```bash
-./scripts/sync.sh
+Hardware paths can be overridden with these environment variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `BADGE_FRAMEBUFFER` | Framebuffer path; default `/dev/fb0` |
+| `BADGE_FB_INVERT` | Set to `1` when framebuffer polarity is inverted |
+| `BADGE_FULL_REFRESH_CYCLE` | Enable or disable the black/white full-refresh cycle |
+| `BADGE_INPUT_DEVICES` | Colon-separated evdev paths |
+| `BADGE_SOUND_DEVICE` | Override the discovered Linux EV_SND device |
+| `BADGE_SERIAL_DEVICE` | Serial monitor device; default `/dev/ttyS0` |
+| `BADGE_RGB_LED` | RGB LED sysfs directory |
+| `BADGE_DATA_DIR` | Persistent launcher data root |
+| `BADGE_FILES_ROOT` | Optional File Manager root; defaults to its app data directory |
+| `BADGE_BATTERY_SUPPLY` | Preferred battery power-supply name; default `bq27541-0` |
+| `BADGE_ALLOW_ROOT_APPS` | Unsafe opt-in for reviewed third-party apps in the root service |
+| `BADGEBEAM_ADVERTISING` | `auto`, `bluez`, `external`, or experimental `legacy-mgmt` |
+| `BADGEBEAM_CONTROLLER` | Controller hint used by BadgeBeam auto mode; package sets `cc33xx` |
+
+BadgeBeam runs as the separate `badgebeam-receiver.service` so a Bluetooth
+failure cannot take down the UI. Advertising is deliberately configurable
+because the badge's CC33xx controller has a known BlueZ extended-advertising
+regression; see `/etc/default/badgebeam-receiver`. The packaged default avoids
+that unvalidated path and keeps the GATT receiver available for an external
+legacy advertiser. An opt-in `legacy-mgmt` mode is included for device testing,
+but is not selected or claimed working until it has been validated on the
+shipping Linux image. It owns a reserved advertising instance using argv-only
+`btmgmt add-adv`/`rm-adv` calls and deliberately does not request a secondary
+PHY; configure the instance in `/etc/default/badgebeam-receiver` before testing.
+
+## Persistent data
+
+Without `BADGE_DATA_DIR`, development runs use `~/.local/share/beaglebadge`:
+
+```text
+beaglebadge/
+├── settings.json
+├── app-data/<app-id>/
+├── installed-apps/
+└── store-cache/
 ```
 
-This syncs all files to `~/badge_launcher` on the device. It is a separate,
-user-owned development copy and does not replace the TI/Armbian package in
-`/usr/lib/badge-launcher` unless you explicitly copy files there.
-
-#### 3. Run Manually
-
-```bash
-ssh root@<device-ip>
-cd ~/badge_launcher
-./scripts/run.sh
-```
-
-## Building MicroPython
-
-The launcher requires MicroPython with LVGL bindings. Build natively on the BeagleBadge for best compatibility.
-
-### 1. Initialize Submodules
-
-```bash
-git submodule update --init --recursive
-```
-
-### 2. Apply LVGL Binding Patch
-
-A small patch is required for header inclusion:
-
-```bash
-sed -i 's|INC += -I$(LVGL_BINDING_DIR)|INC += -I$(LVGL_BINDING_DIR) -I$(LVGL_DIR)|' \
-    lv_micropython/user_modules/lv_binding_micropython/micropython.mk
-```
-
-### 3. Build mpy-cross
-
-On the device:
-
-```bash
-cd lv_micropython/mpy-cross
-make -j$(nproc)
-```
-
-### 4. Build Unix Port with LVGL
-
-```bash
-cd ../ports/unix
-make -j$(nproc) \
-    USER_C_MODULES=../../user_modules \
-    LV_CFLAGS="-DLV_LVGL_H_INCLUDE_SIMPLE"
-```
-
-### 5. Install Binary
-
-```bash
-# For debian package build
-cp ports/unix/build-standard/micropython /path/to/badge-slop/micropython
-
-# For manual install
-cp ports/unix/build-standard/micropython ~/badge_launcher/micropython
-chmod +x ~/badge_launcher/micropython
-```
-
-## Asset Conversion
-
-Images must be converted to raw binary format for fast loading on the E-Ink display.
-
-### 1. Build Conversion Tool
-
-The `img2bin` tool is required for the Photos app to convert images on-the-fly.
-
-> **Note:** The source file `tools/img2bin.c` is currently missing from the repository. Using the pre-compiled binary is recommended if available for your architecture.
-
-```bash
-# If source is available:
-gcc -o img2bin tools/img2bin.c -lm -O2
-```
-
-
-This creates the `img2bin` binary in the project root.
-
-### 2. Convert Images
-
-```bash
-# Basic usage (default 128x128)
-./img2bin input_image.png output_file.bin
-
-# Specify custom dimensions
-./img2bin input_image.png output.bin 400 300
-
-# Maintain aspect ratio with 'contain' mode (adds white borders)
-./img2bin input_image.png output.bin 400 300 contain
-
-# Fill the area with 'cover' mode (crops if needed)
-./img2bin input_image.png output.bin 400 300 cover
-
-# Stretch to fill (ignores aspect ratio)
-./img2bin input_image.png output.bin 400 300 stretch
-```
-
-**Fit Modes:**
-- `stretch` - Stretch to exact dimensions (default, ignores aspect ratio)
-- `contain` - Fit inside target area, maintain aspect ratio, add white borders if needed
-- `cover` - Cover target area, maintain aspect ratio, crop from center if needed
-
-The tool:
-- Resizes images to specified dimensions (default: 400x300)
-- Converts to L8 (grayscale) format
-- Applies Floyd-Steinberg dithering for E-Ink display
-- Supports aspect ratio preservation with letterboxing/pillarboxing
-- Outputs raw binary files
-
-**Usage with Photos App:**
-- Place `.jpg`, `.jpeg`, `.png`, or `.bmp` files in the `photos/` directory
-- The Photos app automatically converts them to 400x300 on first view
-- Uses `contain` mode to preserve aspect ratio with white borders
-- Converted images are cached in `/tmp/` for fast subsequent loading within the same session
-- Cache files are automatically cleaned up when you exit the Photos app
-
-**Pre-converted Assets:**
-- Place `.bin` files in the `assets/` directory for use by other apps
-
-## Configuration
-
-The launcher stores configuration in `config.json` in the application directory:
-
-```json
-{
-  "sound_enabled": true,
-  "badge_name": "Beagle\nBadge",
-  "badge_info": "Badge Launcher\nBuild - Python",
-  "badge_logo": 0
-}
-```
-
-**Settings:**
-- `sound_enabled`: Enable/disable beeper sounds
-- `badge_name`: Name shown in Badge Mode
-- `badge_info`: Info text shown in Badge Mode
-- `badge_logo`: Logo preference (0=Random, 1=Beagle, 2=TI)
-
-Configuration is editable through the Settings app or Badge Mode interface.
-
-## Developing Apps
-
-The badge launcher supports two app structures:
-
-### Flat File Apps (Simple)
-
-Create a single `.py` file in the appropriate category:
-
-```python
-# applications/apps/myapp.py
-from core import app
-import lvgl as lv
-
-class MyApp(app.App):
-    def __init__(self):
-        super().__init__("My App")
-
-    def enter(self, on_exit=None):
-        # Your app logic here
-        pass
-```
-
-### Folder-Based Apps (Advanced)
-
-For apps with resources, data files, or multiple modules:
-
-```
-applications/apps/
-└── myapp/
-    ├── myapp_app.py          # Main app file
-    ├── data/                 # Data files
-    ├── assets/               # Images, fonts, etc.
-    └── README.md             # Documentation
-```
-
-**Benefits:**
-- Self-contained and portable
-- Easy to distribute as Git repos
-- Can be managed as Git submodules
-- App store ready
-
-**Quick Start:**
-
-```bash
-# Copy the template
-cp -r applications/apps/_template_app applications/apps/myapp
-
-# Rename the main file
-cd applications/apps/myapp
-mv template_app_app.py myapp_app.py
-
-# Edit and customize
-```
-
-**See also:**
-- [FOLDER_APPS_GUIDE.md](docs/FOLDER_APPS_GUIDE.md) - Complete guide to folder-based apps
-- [applications/README.md](applications/README.md) - Detailed app development docs
-- [applications/apps/chiptunez/](applications/apps/chiptunez/) - Working example
-
-## App Store
-
-The badge launcher includes an integrated app store for discovering and installing community-developed apps.
-
-### Using the App Store
-
-1. Navigate to **Settings → App Store** on your badge
-2. Browse available apps
-3. Use ↑/↓ to select an app
-4. Press ENTER to install
-5. Restart the launcher to see new apps
-
-### Setting Up Your Own App Store
-
-Create a community app store repository:
-
-```bash
-# Create store repository
-./scripts/create_app_store_repo.sh ../badge-app-store
-cd ../badge-app-store
-
-# Push to GitHub
-git remote add origin https://github.com/YOUR_ORG/badge-app-store.git
-git push -u origin main
-```
-
-### Adding Apps to the Store
-
-```bash
-# Validate your app first
-./scripts/validate_app.sh ../my-awesome-app
-
-# Add to store
-./scripts/add_app_to_store.sh \
-    ../badge-app-store \
-    my-app \
-    https://github.com/user/my-app-repo.git \
-    "My Awesome App" \
-    "Your Name" \
-    "Description of the app" \
-    "tools" \
-    "1.0.0"
-
-# Push changes
-cd ../badge-app-store
-git push
-```
-
-### Configuring the App Store
-
-Update the store URLs in [applications/tools/app_store_app.py](applications/tools/app_store_app.py):
-
-```python
-self.store_repo = "https://github.com/YOUR_ORG/badge-app-store.git"
-self.manifest_url = "https://raw.githubusercontent.com/YOUR_ORG/badge-app-store/main/manifest.json"
-```
-
-**Documentation:**
-- Learn about store architecture, app submission, and best practices
-
-**Technical Details:**
-- Uses git submodules for version control
-- Apps are downloaded on-demand
-- Each app has metadata (name, version, author, category)
-- Supports automatic dependency checking
-- Apps install to `applications/apps/{app-id}/`
-
-## Running the Launcher
-
-### Autostart via systemd
-
-The debian package automatically sets up systemd integration:
-
-```bash
-# Check status
-systemctl status badge-launcher.service
-
-# Stop service
-systemctl stop badge-launcher.service
-
-# Start service
-systemctl start badge-launcher.service
-
-# Disable autostart
-systemctl disable badge-launcher.service
-
-# View logs
-journalctl -u badge-launcher.service -f
-```
-
-### Manual Launch
-
-```bash
-# Packaged launcher
-cd /usr/lib/badge-launcher
-./scripts/run.sh
-
-# Or a manual development copy
-cd ~/badge_launcher
-./scripts/run.sh
-```
-
-The launcher will:
-1. Kill any existing MicroPython instances
-2. Disable the framebuffer cursor
-3. Clear the screen
-4. Launch the application
-
-## Development
-
-### Creating New Applications
-
-1. Create a new Python file in the appropriate `applications/` subdirectory:
-   - `applications/apps/` - General applications
-   - `applications/games/` - Games
-   - `applications/tools/` - Utilities
-   - `applications/settings/` - Settings screens
-
-2. Import the base app class:
-
-```python
-import sys
-if "core" not in sys.path: sys.path.append("core")
-from core import app
-import lvgl as lv
-
-class MyApp(app.App):
-    def __init__(self):
-        super().__init__("My App Name")
-
-    def enter(self, on_exit=None):
-        self.on_exit_cb = on_exit
-        # Create your UI here
-
-    def exit(self):
-        # Clean up resources
-        pass
-```
-
-3. The app will be automatically discovered by `core/app_loader.py` and appear in the menu.
-
-### File Organization
-
-- **Keep apps self-contained** - Each app should be in a single file
-- **Use relative paths** - Assets in `assets/`, drivers in `drivers/`
-- **Follow naming conventions** - Apps end with `_app.py`
-- **Handle cleanup** - Always implement the `exit()` method
-
-### Version Management
-
-The application version is managed centrally through the `VERSION` file at the project root. This version is automatically displayed in the menu and synced with the debian package.
-
-#### Updating the Version
-
-Use the provided script to update the version across all files:
-
-```bash
-./scripts/update_version.sh 1.0.1
-```
-
-This will:
-- Update the `VERSION` file
-- Prepend a new entry to `debian/changelog`
-- Display instructions for committing and tagging
-
-#### Manual Version Update
-
-If you prefer to update manually:
-
-1. Edit the `VERSION` file:
-   ```bash
-   echo "1.0.1" > VERSION
-   ```
-
-2. Update `debian/changelog`:
-   ```bash
-   dch -v 1.0.1 "Your changelog message"
-   # OR manually edit debian/changelog
-   ```
-
-3. The version will automatically appear in the menu on next launch
-
-The version is loaded by [config.py](config.py) and displayed in [core/menu.py](core/menu.py).
-
-## Troubleshooting
-
-### Input Not Working
-
-The launcher reads from `/dev/input/event*` devices. Ensure proper permissions:
-
-```bash
-# Check input devices
-ls -l /dev/input/event*
-
-# Run as root or add user to input group
-usermod -aG input <username>
-```
-
-### MicroPython Import Errors
-
-If you see "ImportError" for `lvgl`:
-
-1. Verify MicroPython was built with LVGL bindings
-2. Check that the patch was applied to `micropython.mk`
-3. Rebuild with `USER_C_MODULES` flag
-
-### Images Not Loading
-
-1. Ensure images were converted using `img2bin`
-2. Check that `.bin` files are in `assets/` directory
-3. Verify file permissions (should be readable)
-
-### Display Issues
-
-If the display shows artifacts or doesn't refresh:
-
-- The launcher uses E-Ink refresh sweeps to clear ghosting
-- Check that `/dev/fb0` exists and is accessible
-- Verify the display driver is loaded
-
-### Service Won't Start
-
-Check systemd logs:
-
-```bash
-journalctl -u badge-launcher.service -n 50
-```
-
-Common issues:
-- Missing `micropython` binary
-- Wrong working directory
-- Missing dependencies
-
-## Features
-
-### Main Menu
-- Logo display (TI/Beagle, configurable)
-- Category-based app organization
-- Status bar with system info
-- Bottom bar with network status
-
-### Badge Mode
-- Customizable name and info display
-- Logo selection (Random, TI, Beagle)
-- Editable via on-screen keyboard
-- Configuration persistence
-
-### Built-in Apps
-- **Media**: Image viewer, music player
-- **Games**: Snake, Brick
-- **Tools**: I2C scanner, serial monitor
-- **Settings**: WiFi, Bluetooth, system info
-
-### System Integration
-- Real-time CPU/RAM monitoring
-- Battery status display
-- Network status (Ethernet/WiFi)
-- USB device detection
+Each app receives its own writable directory as `self.context.data_dir`; bundled resources are available as `self.context.resources`. Uninstalling an app removes its installed code but intentionally leaves its external app data.
+
+Badge Mode loads ordinary PNG, JPEG, BMP, or GIF profile images from `app-data/badge-mode/profile_images/`. On the packaged service that is `/var/lib/badge-launcher/app-data/badge-mode/profile_images/`; for a normal development user it is beneath `~/.local/share/beaglebadge`.
+
+## Project layout
+
+| Path | Responsibility |
+| --- | --- |
+| `badge_sdk/` | Stable imports used by applications |
+| `badge_ui/` | Runtime, Pillow renderer, and display backends |
+| `badge_platform/` | Linux capabilities, settings, manifests, and store transactions |
+| `builtin_apps/` | Trusted first-party launcher and applications |
+| `examples/hello_badge/` | Minimal schema-v2 third-party app |
+| `tests/unit/` | SDK, renderer, platform, launcher, and app tests |
+| `debian/`, `scripts/` | Device packaging and services |
+
+The design and package boundaries are described in [Architecture](docs/ARCHITECTURE.md).
+
+## App trust and compatibility
+
+Installed schema-v2 apps execute **in the launcher process** and are not
+sandboxed. The packaged launcher still needs root for the display and hardware,
+so it refuses to launch third-party apps while its effective user is root. This
+check happens before app Python is imported. For development, run the launcher
+as a normal user. `BADGE_ALLOW_ROOT_APPS=1` is an explicit unsafe escape hatch
+for reviewed code; enabling it grants that app unrestricted root execution.
+
+Manifest validation, traversal checks, compatibility checks, shell-free command
+invocation, and staged installation reduce accidental and catalog-input risks,
+but do not make Python from an untrusted repository safe.
+
+Manifest `permissions` are declarations, not an enforced permission sandbox.
+Python, SDK, minimum-launcher, UI, and execution compatibility are enforced at
+install and launch. The current launcher does not configure a dependency
+installer, so an app that declares extra Python or system dependencies is
+stopped with a clear dependency-setup requirement instead of modifying the
+system automatically.
+
+This branch is intentionally incompatible with executable v1 apps. Port them to a schema-v2 entry point that returns a `badge_sdk.App`; see [Porting a v1 app](docs/APP_DEVELOPMENT.md#porting-a-v1-app).
 
 ## License
 
-See LICENSE file for details.
-
-## Credits
-
-- LVGL Graphics Library: https://lvgl.io
-- MicroPython: https://micropython.org
-- BeagleBoard.org Foundation
+Badge Launcher is licensed under GPL-2.0-only. See [LICENSE](LICENSE).

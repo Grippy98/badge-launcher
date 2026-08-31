@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "beaglebadge-launcher"
+version = "2026.8.30.dev1"
+description = "Portable CPython launcher and app SDK for BeagleBadge"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-2.0-only"
+authors = [{ name = "BeagleBadge contributors" }]
+dependencies = [
+  "Pillow>=9.2,<13",
+  "qrcode>=7.4,<9",
+]
+
+[project.optional-dependencies]
+desktop = ["pygame-ce>=2.5,<4"]
+test = ["pytest>=8,<10"]
+
+[project.scripts]
+badge-launcher = "main:cli"
+badge-app = "badge_sdk.cli:main"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["badge_sdk*", "badge_ui*", "badge_platform*", "builtin_apps*", "scripts*"]
+
+[tool.setuptools.package-data]
+"builtin_apps.apps" = ["assets/*.bin"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests/unit"]

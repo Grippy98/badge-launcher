@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = purge ] && command -v deb-systemd-helper >/dev/null 2>&1; then
+    for unit in badge-launcher.service badgebeam-receiver.service; do
+        deb-systemd-helper purge "$unit" >/dev/null || true
+        deb-systemd-helper unmask "$unit" >/dev/null || true
+    done
+fi
+
+if [ -d /run/systemd/system ]; then
+    systemctl daemon-reload >/dev/null || true
+fi
+
+#DEBHELPER#
+
+exit 0

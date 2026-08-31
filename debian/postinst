@@ -1,17 +1,58 @@
 #!/bin/sh
 set -e
 
-# Reload systemd and update library cache
+install -d -m 0755 /var/lib/badge-launcher
+install -d -m 0755 /var/lib/badge-launcher/app-data
+install -d -m 0755 /var/lib/badge-launcher/installed-apps
+old_version=${2-}
+
+configure_service() {
+    unit="$1"
+    if ! command -v deb-systemd-helper >/dev/null 2>&1; then
+        return
+    fi
+    if deb-systemd-helper debian-installed "$unit"; then
+        deb-systemd-helper unmask "$unit" >/dev/null || true
+        # Preserve an administrator's disabled state across upgrades.
+        if deb-systemd-helper --quiet was-enabled "$unit"; then
+            deb-systemd-helper enable "$unit" >/dev/null || true
+        fi
+    elif [ -n "$old_version" ] && command -v systemctl >/dev/null 2>&1; then
+        # Older packages did not record deb-systemd-helper state. Mirror their
+        # live enablement instead of turning a deliberately disabled unit back
+        # on during the transition.
+        if systemctl is-enabled --quiet "$unit"; then
+            deb-systemd-helper enable "$unit" >/dev/null || true
+        fi
+    else
+        # New installs retain the launcher's historical enabled-by-default
+        # behavior. The two units remain independently disableable.
+        deb-systemd-helper enable "$unit" >/dev/null || true
+    fi
+    deb-systemd-helper update-state "$unit" >/dev/null || true
+}
+
+if [ "$1" = configure ]; then
+    configure_service badge-launcher.service
+    configure_service badgebeam-receiver.service
+fi
+
 if [ -d /run/systemd/system ]; then
-    ldconfig
-    systemctl daemon-reload
-    # Recreate enablement links when upgrading from the legacy /opt package,
-    # whose unit lived under /etc/systemd/system.
-    systemctl reenable badge-launcher.service
+    systemctl daemon-reload >/dev/null || true
+    if command -v deb-systemd-invoke >/dev/null 2>&1; then
+        if [ -n "$old_version" ]; then
+            deb-systemd-invoke try-restart badge-launcher.service badgebeam-receiver.service >/dev/null || true
+        else
+            deb-systemd-invoke start badge-launcher.service badgebeam-receiver.service >/dev/null || true
+        fi
+    fi
     # Reload udev rules for the hardware
-    if command -v udevadm > /dev/null; then
-        udevadm control --reload-rules && udevadm trigger
+    if command -v udevadm >/dev/null 2>&1; then
+        udevadm control --reload-rules >/dev/null 2>&1 || true
+        udevadm trigger >/dev/null 2>&1 || true
     fi
 fi
+
+#DEBHELPER#
 
 exit 0

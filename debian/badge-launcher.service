@@ -11,8 +11,10 @@ RestartSec=3
 User=root
 Environment=HOME=/root
 Environment=TERM=linux
+Environment=BADGE_DATA_DIR=/var/lib/badge-launcher
+Environment=PYTHONUNBUFFERED=1
 ExecStartPre=-/bin/sh -c 'echo 0 > /sys/class/graphics/fbcon/cursor_blink'
-ExecStartPre=-/usr/bin/setterm -cursor off > /dev/tty0
+ExecStartPre=-/bin/sh -c '/usr/bin/setterm -cursor off > /dev/tty0'
 
 [Install]
 WantedBy=multi-user.target

@@ -1,29 +1,28 @@
-# Badge Launcher - Build Tools
-# Simple makefile for building conversion tools
+PYTHON ?= python3
+RELEASE_VERSION := $(shell tr -d '\r\n' < VERSION)
+PYTHON_SOURCES := main.py main_sdl.py badge_sdk badge_ui badge_platform builtin_apps scripts examples tests
 
-.PHONY: all clean img2bin help
+.PHONY: test version-check check desktop screenshot package clean
 
-# Default target
-all: img2bin
+test:
+	$(PYTHON) -m pytest -q
 
-# Image conversion tool (required for Photos app)
-img2bin:
-	@echo "img2bin build from source is currently disabled because tools/img2bin.c is untracked."
-	@echo "Relying on the pre-compiled binary instead."
+version-check:
+	$(PYTHON) scripts/versioning.py "$(RELEASE_VERSION)" --check-pyproject pyproject.toml
 
-# Clean built binaries
+check: test version-check
+	$(PYTHON) -m compileall -q $(PYTHON_SOURCES)
+
+desktop:
+	$(PYTHON) main.py --backend desktop --no-hardware --skip-onboarding
+
+screenshot:
+	mkdir -p build/dev-data
+	$(PYTHON) main.py --backend headless --no-hardware --skip-onboarding \
+		--frames 1 --data-dir build/dev-data --screenshot build/launcher.png
+
+package:
+	./scripts/build_deb.sh
+
 clean:
-	@echo "Cleaning built binaries..."
-	rm -f img2bin
-	@echo "✓ Clean complete"
-
-# Help target
-help:
-	@echo "Badge Launcher Build Targets:"
-	@echo ""
-	@echo "  make img2bin    Build image conversion tool (default)"
-	@echo "  make clean      Remove built binaries"
-	@echo "  make help       Show this help message"
-	@echo ""
-	@echo "The img2bin tool is required for the Photos app to convert"
-	@echo "JPEG/PNG images to binary format for the E-Ink display."
+	rm -rf build dist

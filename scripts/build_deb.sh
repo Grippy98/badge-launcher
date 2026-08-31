@@ -8,42 +8,55 @@ PKG_ARCH="arm64"
 DEB_FILE="${PKG_NAME}_${PKG_VERSION}_${PKG_ARCH}.deb"
 
 # Temporary build directory
-BUILD_DIR=$(mktemp -d -t deb-build-XXXXXXXXXX)
+readonly BUILD_DIR=$(mktemp -d -t deb-build-XXXXXXXXXX)
 STAGING_DIR="$BUILD_DIR/staging"
 INSTALL_DIR="$STAGING_DIR/usr/lib/badge-launcher"
+BIN_DIR="$STAGING_DIR/usr/bin"
 SERVICE_DIR="$STAGING_DIR/usr/lib/systemd/system"
+STATE_DIR="$STAGING_DIR/var/lib/badge-launcher"
+DEFAULT_DIR="$STAGING_DIR/etc/default"
 DEBIAN_DIR="$STAGING_DIR/DEBIAN"
 
-# Cleanup on exit
-trap "rm -rf $BUILD_DIR" EXIT
+# Cleanup only the directory returned by mktemp.
+cleanup() {
+    if [ -d "$BUILD_DIR" ]; then
+        rm -rf -- "$BUILD_DIR"
+    fi
+}
+trap cleanup EXIT
 
 echo "Using temporary build directory: $BUILD_DIR"
 
 # Create directory structure
 mkdir -p "$INSTALL_DIR"
+mkdir -p "$BIN_DIR"
 mkdir -p "$SERVICE_DIR"
+mkdir -p "$DEFAULT_DIR"
 mkdir -p "$DEBIAN_DIR"
+mkdir -p "$STATE_DIR/app-data" "$STATE_DIR/installed-apps"
 
 echo "Copying application files..."
 rsync -av \
     --exclude='debian' \
     --exclude='.git' \
+    --exclude='.venv*' \
+    --exclude='.pytest_cache' \
+    --exclude='.ruff_cache' \
+    --exclude='*.egg-info' \
+    --exclude='build' \
+    --exclude='dist' \
     --exclude='.DS_Store' \
     --exclude='__pycache__' \
     --exclude='*.pyc' \
-    --exclude='lv_micropython' \
     --exclude='tests' \
     --exclude='*.deb' \
     --exclude='build_deb.sh' \
     --exclude='sync.sh' \
-    --exclude='.gemini' \
-    --exclude='metadata' \
-    --exclude='img2bin' \
     ./ "$INSTALL_DIR/"
 
 echo "Copying packaging metadata from debian/..."
 MAINTAINER=$(grep "^Maintainer:" debian/control | head -1 | cut -d' ' -f2-)
-VERSION=$(head -1 debian/changelog | cut -d"(" -f2 | cut -d")" -f1)
+VERSION="$PKG_VERSION"
 
 # Extract only the binary package part of control and add Maintainer/Version
 {
@@ -54,24 +67,37 @@ VERSION=$(head -1 debian/changelog | cut -d"(" -f2 | cut -d")" -f1)
     echo "Version: $VERSION"
 } > "$DEBIAN_DIR/control"
 cp debian/postinst "$DEBIAN_DIR/"
+cp debian/preinst "$DEBIAN_DIR/"
+cp debian/prerm "$DEBIAN_DIR/"
+cp debian/postrm "$DEBIAN_DIR/"
+cp debian/conffiles "$DEBIAN_DIR/"
 cp debian/badge-launcher.service "$SERVICE_DIR/"
+cp debian/badgebeam-receiver.service "$SERVICE_DIR/"
+cp debian/badgebeam-receiver.default "$DEFAULT_DIR/badgebeam-receiver"
+cp debian/badge-launcher.wrapper "$BIN_DIR/badge-launcher"
+cp debian/badge-app.wrapper "$BIN_DIR/badge-app"
 
 
 echo "Fixing permissions..."
 chmod 755 "$DEBIAN_DIR/postinst"
+chmod 755 "$DEBIAN_DIR/preinst"
+chmod 755 "$DEBIAN_DIR/prerm"
+chmod 755 "$DEBIAN_DIR/postrm"
 chmod +x "$INSTALL_DIR/scripts/run.sh"
-[ -f "$INSTALL_DIR/micropython" ] && chmod +x "$INSTALL_DIR/micropython"
+chmod +x "$INSTALL_DIR/scripts/badgebeam_bleserver.py"
+chmod 755 "$BIN_DIR/badge-launcher"
+chmod 755 "$BIN_DIR/badge-app"
 
 echo "Building package manually (using ar/tar)..."
 
 # Prepare control.tar.gz
 cd "$DEBIAN_DIR"
-COPYFILE_DISABLE=1 tar -czf "$BUILD_DIR/control.tar.gz" --format=ustar *
+COPYFILE_DISABLE=1 tar -czf "$BUILD_DIR/control.tar.gz" --format=ustar --owner=0 --group=0 *
 cd - > /dev/null
 
 # Prepare data.tar.gz
 cd "$STAGING_DIR"
-COPYFILE_DISABLE=1 tar -czf "$BUILD_DIR/data.tar.gz" --format=ustar --owner=0 --group=0 usr
+COPYFILE_DISABLE=1 tar -czf "$BUILD_DIR/data.tar.gz" --format=ustar --owner=0 --group=0 etc usr var
 cd - > /dev/null
 
 # Create debian-binary

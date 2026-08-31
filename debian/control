@@ -2,12 +2,13 @@ Source: badge-launcher
 Section: utils
 Priority: optional
 Maintainer: Andrei Aldea <andrei1998@gmail.com>
-Build-Depends: debhelper-compat (= 13), rsync, build-essential
-Standards-Version: 4.5.0
+Build-Depends: debhelper-compat (= 13), rsync
+Standards-Version: 4.6.2
 
 Package: badge-launcher
 Architecture: arm64
-Depends: ${shlibs:Depends}, ${misc:Depends}, libsdl2-2.0-0, rsync, git, network-manager, bluez, i2c-tools, psmisc, curl
-Description: Python-based Badge Launcher for BeagleBadge
- A comprehensive launcher and driver suite for the BeagleBadge.
- Includes LVGL-based UI and systemd integration.
+Depends: ${misc:Depends}, init-system-helpers, python3 (>= 3.11), python3-pil, python3-qrcode, python3-dbus, python3-gi, fonts-dejavu-core, git, network-manager, bluez, i2c-tools, iproute2
+Suggests: python3-pygame
+Description: CPython launcher and portable app SDK for BeagleBadge
+ A monochrome e-paper launcher, first-party applications, desktop simulator,
+ hardware services, Bluetooth BadgeBeam receiver, and developer-facing SDK.

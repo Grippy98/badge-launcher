@@ -1,0 +1,15 @@
+# BadgeBeam advertising provider: auto, bluez, external, or legacy-mgmt.
+#
+# The packaged target is a CC33xx badge, so the explicit controller hint makes
+# "auto" register GATT only. BlueZ 5.82 has been observed selecting extended-
+# advertising commands that this controller silently drops. Configure a board-
+# validated advertiser before using "external".
+#
+# "legacy-mgmt" is an opt-in btmgmt Add Advertising experiment. It does not
+# request a secondary PHY, but it is not hardware-validated and directly uses
+# BlueZ's low-level MGMT interface. Reserve BADGEBEAM_MGMT_INSTANCE for it and
+# test discoverability before deployment. "bluez" likewise requires validation
+# before use on CC33xx.
+BADGEBEAM_CONTROLLER=cc33xx
+BADGEBEAM_ADVERTISING=auto
+# BADGEBEAM_MGMT_INSTANCE=1

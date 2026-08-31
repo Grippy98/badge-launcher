@@ -6,16 +6,43 @@
 override_dh_auto_build:
 	# Build nothing (Python app)
 
-	override_dh_auto_install:
+override_dh_auto_install:
 	# Create target directory
 	mkdir -p debian/badge-launcher/usr/lib/badge-launcher
 	
 	# Install application files
-	rsync -av --exclude='debian' --exclude='.git' --exclude='lv_micropython' --exclude='*.deb' --exclude='build_deb.sh' --exclude='sync.sh' --exclude='.gemini' ./ debian/badge-launcher/usr/lib/badge-launcher/
+	rsync -av \
+		--exclude='debian' \
+		--exclude='.git' \
+		--exclude='.venv*' \
+		--exclude='.pytest_cache' \
+		--exclude='.ruff_cache' \
+		--exclude='*.egg-info' \
+		--exclude='build' \
+		--exclude='dist' \
+		--exclude='__pycache__' \
+		--exclude='tests' \
+		--exclude='*.deb' \
+		--exclude='build_deb.sh' \
+		--exclude='sync.sh' \
+		./ debian/badge-launcher/usr/lib/badge-launcher/
 	
-	# Install service file
+	# Install service files
 	mkdir -p debian/badge-launcher/usr/lib/systemd/system
 	cp debian/badge-launcher.service debian/badge-launcher/usr/lib/systemd/system/
+	cp debian/badgebeam-receiver.service debian/badge-launcher/usr/lib/systemd/system/
+	mkdir -p debian/badge-launcher/etc/default
+	cp debian/badgebeam-receiver.default debian/badge-launcher/etc/default/badgebeam-receiver
+	mkdir -p debian/badge-launcher/usr/bin
+	install -m 0755 debian/badge-launcher.wrapper debian/badge-launcher/usr/bin/badge-launcher
+	install -m 0755 debian/badge-app.wrapper debian/badge-launcher/usr/bin/badge-app
+	mkdir -p debian/badge-launcher/var/lib/badge-launcher/app-data
+	mkdir -p debian/badge-launcher/var/lib/badge-launcher/installed-apps
 
 override_dh_auto_clean:
 	dh_auto_clean
+
+# Both units share explicit maintainer-script lifecycle handling so the
+# standalone BadgeBeam unit and administrator-disabled state behave alike.
+override_dh_installsystemd:
+	:

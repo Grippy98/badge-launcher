@@ -1,14 +1,8 @@
 #!/bin/sh
-# Kill existing instances
-killall -q micropython
-# Wait a brief moment
-sleep 0.5
-# Disable framebuffer console cursor and blinking
-echo 0 > /sys/class/graphics/fbcon/cursor_blink 2>/dev/null
-setterm -cursor off > /dev/tty0 2>/dev/null
-clear > /dev/tty0
-# Run the app
-SCRIPT_DIR="$(dirname "$(realpath "$0")")"
-APP_DIR="$(dirname "$SCRIPT_DIR")"
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+APP_DIR=$(dirname "$SCRIPT_DIR")
 cd "$APP_DIR"
-./micropython main.py
+
+exec /usr/bin/python3 -u main.py --backend framebuffer "$@"

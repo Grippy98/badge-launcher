@@ -1,27 +1,25 @@
-#!/bin/bash
+#!/bin/sh
+set -eu
 
-# Configuration (Specific to this machine)
-BADGE_IP="192.168.1.126"
-BADGE_USER="root"
-BADGE_PASS="beagle"
-DEST_DIR="~/badge_launcher"
+: "${BADGE_HOST:?Set BADGE_HOST to the badge hostname or IP address}"
+BADGE_USER=${BADGE_USER:-root}
+BADGE_DEST=${BADGE_DEST:-/root/badge-launcher-dev}
 
-# Check if sshpass is installed
-if ! command -v sshpass &> /dev/null; then
-    echo "sshpass is required for this script. Please install it: sudo apt install sshpass"
-    exit 1
-fi
+case "$BADGE_USER" in (*[!A-Za-z0-9_.-]*) echo "Unsafe BADGE_USER" >&2; exit 2;; esac
+case "$BADGE_HOST" in (*[!A-Za-z0-9_.:-]*) echo "Unsafe BADGE_HOST" >&2; exit 2;; esac
+case "$BADGE_DEST" in (/*) ;; (*) echo "BADGE_DEST must be absolute" >&2; exit 2;; esac
+case "$BADGE_DEST" in (*[!A-Za-z0-9_./-]*) echo "Unsafe BADGE_DEST" >&2; exit 2;; esac
 
-echo "Syncing files to $BADGE_USER@$BADGE_IP:$DEST_DIR..."
+TARGET="$BADGE_USER@$BADGE_HOST"
+ssh "$TARGET" mkdir -p "$BADGE_DEST"
+rsync -avz --delete \
+    --exclude .git \
+    --exclude '.venv*' \
+    --exclude __pycache__ \
+    --exclude .pytest_cache \
+    --exclude '*.egg-info' \
+    --exclude '*.deb' \
+    ./ "$TARGET:$BADGE_DEST/"
+ssh "$TARGET" chmod +x "$BADGE_DEST/scripts/run.sh" "$BADGE_DEST/scripts/badgebeam_bleserver.py"
 
-# Create directory if it doesn't exist
-sshpass -p "$BADGE_PASS" ssh -o StrictHostKeyChecking=no "$BADGE_USER@$BADGE_IP" "mkdir -p $DEST_DIR"
-
-# Sync files (excluding git and other unnecessary files)
-sshpass -p "$BADGE_PASS" rsync -avz --delete --exclude '.git' --exclude '.gitignore' --exclude 'sync.sh' --exclude 'build/' --exclude 'build-standard/' --exclude '*.so' --exclude '*.a' --exclude '*.o' ./ "$BADGE_USER@$BADGE_IP:$DEST_DIR/"
-
-# Set permissions
-echo "Setting permissions..."
-sshpass -p "$BADGE_PASS" ssh -o StrictHostKeyChecking=no "$BADGE_USER@$BADGE_IP" "chmod +x $DEST_DIR/scripts/run.sh $DEST_DIR/micropython 2>/dev/null || true"
-
-echo "Sync complete!"
+echo "Synced to $TARGET:$BADGE_DEST"

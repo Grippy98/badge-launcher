@@ -1,0 +1,29 @@
+#!/bin/sh
+set -e
+
+# Preserve settings from the MicroPython package before dpkg replaces its
+# application tree.  The CPython Settings service validates known keys when it
+# loads this JSON file.
+NEW_SETTINGS=/var/lib/badge-launcher/settings.json
+if [ ! -e "$NEW_SETTINGS" ]; then
+    for OLD_SETTINGS in /usr/lib/badge-launcher/config.json /opt/badge_launcher/config.json; do
+        if [ -f "$OLD_SETTINGS" ]; then
+            install -d -m 0755 /var/lib/badge-launcher
+            install -m 0600 "$OLD_SETTINGS" "$NEW_SETTINGS"
+            break
+        fi
+    done
+fi
+
+# Badge Mode used to read user-provided artwork from profile_img inside the
+# application directory. Preserve those files outside the immutable package
+# tree, without overwriting anything already migrated or created by CPython.
+NEW_PROFILE_DIR=/var/lib/badge-launcher/app-data/badge-mode/profile_images
+for OLD_PROFILE_DIR in /usr/lib/badge-launcher/profile_img /opt/badge_launcher/profile_img; do
+    if [ -d "$OLD_PROFILE_DIR" ]; then
+        install -d -m 0755 "$NEW_PROFILE_DIR"
+        cp -n -- "$OLD_PROFILE_DIR"/* "$NEW_PROFILE_DIR"/ 2>/dev/null || true
+    fi
+done
+
+exit 0
